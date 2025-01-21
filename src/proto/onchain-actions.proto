@@ -1,0 +1,199 @@
+syntax = "proto3";
+
+package ember_agents_onchain.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// The DataService provides information about chains and tokens.
+//
+// Possible gRPC error codes for these methods:
+// - INVALID_ARGUMENT: The request parameters are malformed or invalid.
+// - NOT_FOUND: The requested resource(s) could not be found.
+// - INTERNAL: An unexpected server-side error occurred.
+// - UNAUTHENTICATED / PERMISSION_DENIED: If authentication or authorization fails.
+//
+service DataService {
+  // Returns a list of supported chains.
+  // Error codes:
+  //   - INVALID_ARGUMENT if filtering or pagination parameters are invalid.
+  //   - INTERNAL for server-side issues.
+  rpc GetChains(GetChainsRequest) returns (GetChainsResponse) {}
+
+  // Returns a list of tokens (potentially filtered by chain or other criteria).
+  // Error codes:
+  //   - INVALID_ARGUMENT if filtering or pagination parameters are invalid.
+  //   - NOT_FOUND if no tokens match the request.
+  //   - INTERNAL for server-side issues.
+  rpc GetTokens(GetTokensRequest) returns (GetTokensResponse) {}
+}
+
+// New service for transaction creation
+service CreateTransaction {
+  // Creates a transaction for swapping tokens.
+  // Error codes:
+  //   - INVALID_ARGUMENT if the request parameters are invalid
+  //   - NOT_FOUND if tokens or chain cannot be found
+  //   - INTERNAL for server-side issues
+  //   - FAILED_PRECONDITION if the swap is not possible
+  rpc SwapTokens(SwapTokensRequest) returns (SwapTokensResponse) {}
+}
+
+// Chain type enum
+enum ChainType {
+  UNSPECIFIED = 0;
+  EVM = 1;
+  SOLANA = 2;
+  COSMOS = 3;
+}
+
+message Chain {
+  string chain_id = 1;
+  ChainType type = 2;
+  string icon_uri = 3;
+  Token native_token = 4;
+  string http_rpc_url = 5;
+  string name = 6;
+  repeated string block_explorer_urls = 7;
+
+  // Timestamps
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message Token {
+  // For native tokens, this may be empty.
+  string token_id = 1;
+  string name = 2;
+  string symbol = 3;
+  bool is_native = 4;
+  int32 decimals = 5;
+  string chain_id = 6;
+  string icon_uri = 7;
+
+  // Store as a string to avoid floating-point precision issues.
+  // e.g., "123.456789"
+  string usd_price = 8;
+
+  bool is_vetted = 9;
+
+  // Timestamps
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// Request to get chains, with optional filtering/pagination.
+message GetChainsRequest {
+  string filter = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message GetChainsResponse {
+  repeated Chain chains = 1;
+  string next_page_token = 2;
+}
+
+// Request to get tokens, with optional filter by chain_id, plus pagination.
+message GetTokensRequest {
+  // If empty, returns tokens across all chains.
+  string chain_id = 1;
+  string filter = 2;
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+message GetTokensResponse {
+  repeated Token tokens = 1;
+  string next_page_token = 2;
+}
+
+// Order type for token swaps
+enum OrderType {
+  ORDER_TYPE_UNSPECIFIED = 0;
+  MARKET_BUY = 1;
+  MARKET_SELL = 2;
+  LIMIT_BUY = 3;
+  LIMIT_SELL = 4;
+}
+
+// Identifies a token on a specific chain
+message TokenIdentifier {
+  string chain_id = 1;
+  string token_id = 2;
+}
+
+// Status of the transaction plan creation
+enum TransactionPlanStatus {
+  TRANSACTION_PLAN_STATUS_UNSPECIFIED = 0;
+  SUCCESS = 1;  // Valid transaction data was created
+  ERROR = 2;    // Failed to create valid transaction data
+}
+
+// Request to swap tokens
+message SwapTokensRequest {
+  OrderType type = 1;
+  TokenIdentifier base_token = 2;
+  TokenIdentifier quote_token = 3;
+  string amount = 4;
+  optional string limit_price = 5;
+  optional string slippage_tolerance = 6;
+  optional string expiration = 7;  // Changed from deadline
+  string recipient = 8;
+}
+
+// Error details when transaction plan creation fails
+message TransactionPlanError {
+  string code = 1;        // e.g., "INSUFFICIENT_LIQUIDITY"
+  string message = 2;     // Human-readable error message
+  map<string, string> details = 3;  // Additional context about the error
+}
+
+// Response containing the swap details
+message SwapTokensResponse {
+  TransactionPlanStatus status = 1;  // Changed from SwapStatus
+  OrderType type = 2;
+  
+  // Echo back the token details
+  TokenIdentifier base_token = 3;
+  TokenIdentifier quote_token = 4;
+  
+  // Fee and transaction details
+  FeeBreakdown fee_breakdown = 5;
+  TransactionPlan transaction_plan = 6;
+  SwapEstimation estimation = 7;
+  
+  // Error details if status is ERROR
+  optional TransactionPlanError error = 8;  // Changed from SwapError
+}
+
+// Transaction type for different chains
+enum TransactionType {
+  TRANSACTION_TYPE_UNSPECIFIED = 0;
+  EVM_TX = 1;
+  SOLANA_TX = 2;
+  COSMOS_TX = 3;
+}
+
+// Fee breakdown for the swap
+message FeeBreakdown {
+  string gas_fee = 1;
+  string service_fee = 2;
+  string slippage_cost = 3;
+  string total = 4;
+  string fee_denomination = 5;
+}
+
+// Chain-specific transaction plan
+message TransactionPlan {
+  TransactionType type = 1;
+  string to = 2;
+  string data = 3;
+  string value = 4;
+}
+
+// Estimation details for the swap
+message SwapEstimation {
+  string base_token_delta = 1;
+  string quote_token_delta = 2;
+  string effective_price = 3;
+  string time_estimate = 4;
+  string expiration = 5;
+}
