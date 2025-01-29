@@ -1,10 +1,28 @@
-import EmberClient, { OrderType } from '../src/index.js';
+import EmberClient, { OrderType, TransactionType } from '../src/index.js';
+import { createPublicClient, createWalletClient, http, parseEther } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { mainnet } from 'viem/chains';
 
 async function main() {
   // Initialize the client
   const client = new EmberClient({
     endpoint: 'api.emberai.xyz:443',
     apiKey: process.env.EMBER_API_KEY,
+  });
+
+  // Initialize Ethereum clients
+  const transport = http(process.env.RPC_URL || 'https://eth.llamarpc.com');
+  const publicClient = createPublicClient({
+    chain: mainnet,
+    transport,
+  });
+
+  // Create wallet from private key
+  const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`);
+  const walletClient = createWalletClient({
+    account,
+    chain: mainnet,
+    transport,
   });
 
   try {
@@ -51,7 +69,7 @@ async function main() {
       // Amount in smallest unit (1 WETH = 1e18 wei)
       amount: '1000000000000000000',
       // Your wallet address
-      recipient: process.env.WALLET_ADDRESS || '0x...',
+      recipient: account.address,
     });
 
     console.log('Swap created:', {
@@ -60,6 +78,42 @@ async function main() {
       quoteTokenDelta: swap.estimation?.quoteTokenDelta,
       effectivePrice: swap.estimation?.effectivePrice,
       fees: swap.feeBreakdown,
+    });
+
+    // Check if we have a valid transaction plan
+    if (!swap.transactionPlan) {
+      throw new Error('No transaction plan received');
+    }
+
+    // Verify this is an EVM transaction
+    if (swap.transactionPlan.type !== TransactionType.EVM_TX) {
+      throw new Error('Expected EVM transaction');
+    }
+
+    // Get the latest gas estimate
+    const gasEstimate = await publicClient.estimateGas({
+      account: account.address,
+      to: swap.transactionPlan.to as `0x${string}`,
+      data: swap.transactionPlan.data as `0x${string}`,
+      value: BigInt(swap.transactionPlan.value || '0'),
+    });
+
+    // Send the transaction
+    const hash = await walletClient.sendTransaction({
+      to: swap.transactionPlan.to as `0x${string}`,
+      data: swap.transactionPlan.data as `0x${string}`,
+      value: BigInt(swap.transactionPlan.value || '0'),
+      gas: gasEstimate,
+    });
+    
+    console.log('Transaction sent:', { hash });
+
+    // Wait for the transaction to be mined
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    console.log('Transaction confirmed:', {
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed.toString(),
+      status: receipt.status === 'success' ? 'success' : 'failed',
     });
 
   } catch (error) {
