@@ -24,7 +24,6 @@
     "prebuild": "pnpm run clean",
     "test": "tsx --test test/**/*.test.ts",
     "lint": "tsc --noEmit",
-    "prepublishOnly": "pnpm run build",
     "generate-proto": "./scripts/generate-proto.sh"
   },
   "keywords": [
