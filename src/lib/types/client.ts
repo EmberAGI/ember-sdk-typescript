@@ -5,7 +5,7 @@ import type {
   GetTokensResponse,
   SwapTokensRequest,
   SwapTokensResponse,
-} from '../../generated/onchain-actions.js';
+} from '../../generated/onchain_actions.js';
 
 export interface EmberClientConfig {
   /** gRPC endpoint URL */

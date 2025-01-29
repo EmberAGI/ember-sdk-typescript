@@ -8,7 +8,7 @@ import {
   SwapTokensResponse,
   DataServiceClient,
   CreateTransactionClient,
-} from '../../generated/onchain-actions.js';
+} from '../../generated/onchain_actions.js';
 import type { EmberClient, EmberClientConfig } from '../types/client.js';
 
 export class EmberGrpcClient implements EmberClient {
