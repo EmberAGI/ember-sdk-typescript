@@ -2,6 +2,8 @@
 
 The Ember SDK gives your AI agents on-chain actions. This TypeScript SDK provides a strongly-typed client for interacting with Ember's gRPC API.
 
+> **Beta Release**: This SDK is currently in beta. The API is unstable and may change between versions.
+
 ## Features
 
 - Full TypeScript support with generated types
@@ -12,37 +14,25 @@ The Ember SDK gives your AI agents on-chain actions. This TypeScript SDK provide
 
 ## Installation
 
-Currently, the best way to use this SDK is to clone it and install it as a local dependency:
+Install the SDK and its peer dependencies:
 
 ```bash
-# Clone the repository
-git clone https://github.com/EmberAGI/ember-sdk-typescript.git
-cd ember-sdk-typescript
+# Using pnpm (recommended)
+pnpm add @emberai/sdk-typescript@beta @grpc/grpc-js @grpc/proto-loader
 
-# Using Docker (recommended)
-docker compose run --rm proto
-docker compose run --rm sdk pnpm build
+# Using npm
+npm install @emberai/sdk-typescript@beta @grpc/grpc-js @grpc/proto-loader
 
-# In your project
-cd your-project
-
-# Install the SDK from the local build
-pnpm add file:../ember-sdk-typescript
-
-# Install peer dependencies
-pnpm add @grpc/grpc-js @grpc/proto-loader
+# Using yarn
+yarn add @emberai/sdk-typescript@beta @grpc/grpc-js @grpc/proto-loader
 ```
 
-npm package installation will be supported in a future release:
-```bash
-# Coming soon
-pnpm add @ember/sdk-typescript
-```
+> Note: During the beta period, you must explicitly use the `@beta` tag when installing. This ensures you're aware that the API may change between versions.
 
 ## Basic Usage
 
 ```typescript
-import EmberClient from '@ember/sdk-typescript';
+import EmberClient from '@emberai/sdk-typescript';
 
 // Create a client instance
 const client = new EmberClient({
@@ -83,7 +73,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { createOpenAIToolsAgent, AgentExecutor } from "langchain/agents";
 import { pull } from "langchain/hub";
 import { StructuredTool } from "@langchain/core/tools";
-import EmberClient, { OrderType } from '@ember/sdk-typescript';
+import EmberClient, { OrderType } from '@emberai/sdk-typescript';
 import { z } from "zod";
 
 // Create a tool for getting chain information

@@ -1,5 +1,5 @@
 {
-  "name": "ember-sdk-typescript",
+  "name": "@emberai/sdk-typescript",
   "version": "0.1.0",
   "description": "The Ember SDK gives your AI agents on-chain actions",
   "type": "module",
@@ -34,7 +34,7 @@
     "blockchain",
     "web3"
   ],
-  "author": "",
+  "author": "Tom Daniel",
   "license": "ISC",
   "engines": {
     "node": ">=18.0.0"
