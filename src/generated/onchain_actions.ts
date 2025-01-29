@@ -2,7 +2,7 @@
 // versions:
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               v3.21.12
-// source: onchain-actions.proto
+// source: onchain_actions.proto
 
 /* eslint-disable */
 import {
