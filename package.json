@@ -1,6 +1,6 @@
 {
   "name": "ember-sdk-typescript",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "The Ember SDK gives your AI agents on-chain actions",
   "type": "module",
   "main": "./dist/index.js",
