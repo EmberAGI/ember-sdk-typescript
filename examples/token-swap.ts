@@ -6,7 +6,7 @@ import { mainnet } from 'viem/chains';
 async function main() {
   // Initialize the client
   const client = new EmberClient({
-    endpoint: 'api.emberai.xyz:443',
+    endpoint: 'grpc.api.emberai.xyz:50051',
     apiKey: process.env.EMBER_API_KEY,
   });
 
@@ -26,22 +26,9 @@ async function main() {
   });
 
   try {
-    // Get supported chains
-    const { chains } = await client.getChains({
-      pageSize: 10,
-      filter: '',
-      pageToken: '',
-    });
-    
-    // Find Ethereum chain
-    const ethereum = chains.find(chain => chain.name.toLowerCase() === 'ethereum');
-    if (!ethereum) {
-      throw new Error('Ethereum chain not found');
-    }
-
     // Get tokens on Ethereum
     const { tokens } = await client.getTokens({
-      chainId: ethereum.chainId,
+      chainId: '1', // Ethereum
       pageSize: 100,
       filter: '',
       pageToken: '',
@@ -57,14 +44,14 @@ async function main() {
 
     // Create a swap request to buy 1 WETH with USDC
     const swap = await client.swapTokens({
-      type: OrderType.MARKET_BUY,
+      orderType: OrderType.MARKET_BUY,
       baseToken: {
-        chainId: ethereum.chainId,
-        tokenId: weth.tokenId,
+        chainId: '1', // Ethereum
+        address: weth.tokenId,
       },
       quoteToken: {
-        chainId: ethereum.chainId,
-        tokenId: usdc.tokenId,
+        chainId: '1', // Ethereum
+        address: usdc.tokenId,
       },
       // Amount in smallest unit (1 WETH = 1e18 wei)
       amount: '1000000000000000000',
@@ -107,6 +94,12 @@ async function main() {
     });
     
     console.log('Transaction sent:', { hash });
+
+    // Create a clickable transaction link using provider tracking info
+    if (swap.providerTracking?.explorerUrl) {
+      const txLink = `${swap.providerTracking.explorerUrl}${hash}`;
+      console.log('View provider transaction status:', txLink);
+    }
 
     // Wait for the transaction to be mined
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
