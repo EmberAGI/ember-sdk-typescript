@@ -1,0 +1,55 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  continuous_integration:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repo
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm i --frozen-lockfile
+
+      - name: Check lint warnings
+        run: pnpm lint:check
+
+      - name: Check types are up-to-date
+        run: |
+          pnpm generate-proto
+          if [[ $(git status --porcelain) ]]; then
+            echo "Run pnpm genTypes and commit to the repo again."
+            exit 1
+          fi
+
+  integration_testing:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout the repo
+        uses: actions/checkout@v4
+
+      - name: Set up PDM
+        uses: pdm-project/setup-pdm@v4
+        with:
+          cache: true
+          cache-dependency-path: integration_tests/pdm.lock
+          python-version: 3.13
+
+      # TODO: Add a steps to run the integration tests
