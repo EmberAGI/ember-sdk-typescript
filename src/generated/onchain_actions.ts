@@ -266,12 +266,12 @@ export interface GetTokensResponse {
 /** Identifies a token on a specific chain */
 export interface TokenIdentifier {
   chainId: string;
-  tokenId: string;
+  address: string;
 }
 
 /** Request to swap tokens */
 export interface SwapTokensRequest {
-  type: OrderType;
+  orderType: OrderType;
   baseToken?: TokenIdentifier | undefined;
   quoteToken?: TokenIdentifier | undefined;
   amount: string;
@@ -303,7 +303,7 @@ export interface TransactionPlanError_DetailsEntry {
 export interface SwapTokensResponse {
   /** Changed from SwapStatus */
   status: TransactionPlanStatus;
-  type: OrderType;
+  orderType: OrderType;
   /** Echo back the token details */
   baseToken?: TokenIdentifier | undefined;
   quoteToken?:
@@ -314,6 +314,10 @@ export interface SwapTokensResponse {
   transactionPlan?: TransactionPlan | undefined;
   estimation?:
     | SwapEstimation
+    | undefined;
+  /** Tracking information from the provider */
+  providerTracking?:
+    | ProviderTrackingInfo
     | undefined;
   /** Error details if status is ERROR */
   error?: TransactionPlanError | undefined;
@@ -343,6 +347,13 @@ export interface SwapEstimation {
   effectivePrice: string;
   timeEstimate: string;
   expiration: string;
+}
+
+/** Tracking information from the provider */
+export interface ProviderTrackingInfo {
+  requestId: string;
+  providerName: string;
+  explorerUrl: string;
 }
 
 function createBaseChain(): Chain {
@@ -1069,7 +1080,7 @@ export const GetTokensResponse = {
 };
 
 function createBaseTokenIdentifier(): TokenIdentifier {
-  return { chainId: "", tokenId: "" };
+  return { chainId: "", address: "" };
 }
 
 export const TokenIdentifier = {
@@ -1077,8 +1088,8 @@ export const TokenIdentifier = {
     if (message.chainId !== "") {
       writer.uint32(10).string(message.chainId);
     }
-    if (message.tokenId !== "") {
-      writer.uint32(18).string(message.tokenId);
+    if (message.address !== "") {
+      writer.uint32(18).string(message.address);
     }
     return writer;
   },
@@ -1102,7 +1113,7 @@ export const TokenIdentifier = {
             break;
           }
 
-          message.tokenId = reader.string();
+          message.address = reader.string();
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -1116,7 +1127,7 @@ export const TokenIdentifier = {
   fromJSON(object: any): TokenIdentifier {
     return {
       chainId: isSet(object.chainId) ? globalThis.String(object.chainId) : "",
-      tokenId: isSet(object.tokenId) ? globalThis.String(object.tokenId) : "",
+      address: isSet(object.address) ? globalThis.String(object.address) : "",
     };
   },
 
@@ -1125,8 +1136,8 @@ export const TokenIdentifier = {
     if (message.chainId !== "") {
       obj.chainId = message.chainId;
     }
-    if (message.tokenId !== "") {
-      obj.tokenId = message.tokenId;
+    if (message.address !== "") {
+      obj.address = message.address;
     }
     return obj;
   },
@@ -1137,14 +1148,14 @@ export const TokenIdentifier = {
   fromPartial<I extends Exact<DeepPartial<TokenIdentifier>, I>>(object: I): TokenIdentifier {
     const message = createBaseTokenIdentifier();
     message.chainId = object.chainId ?? "";
-    message.tokenId = object.tokenId ?? "";
+    message.address = object.address ?? "";
     return message;
   },
 };
 
 function createBaseSwapTokensRequest(): SwapTokensRequest {
   return {
-    type: 0,
+    orderType: 0,
     baseToken: undefined,
     quoteToken: undefined,
     amount: "",
@@ -1157,8 +1168,8 @@ function createBaseSwapTokensRequest(): SwapTokensRequest {
 
 export const SwapTokensRequest = {
   encode(message: SwapTokensRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.type !== 0) {
-      writer.uint32(8).int32(message.type);
+    if (message.orderType !== 0) {
+      writer.uint32(8).int32(message.orderType);
     }
     if (message.baseToken !== undefined) {
       TokenIdentifier.encode(message.baseToken, writer.uint32(18).fork()).ldelim();
@@ -1196,7 +1207,7 @@ export const SwapTokensRequest = {
             break;
           }
 
-          message.type = reader.int32() as any;
+          message.orderType = reader.int32() as any;
           continue;
         case 2:
           if (tag !== 18) {
@@ -1258,7 +1269,7 @@ export const SwapTokensRequest = {
 
   fromJSON(object: any): SwapTokensRequest {
     return {
-      type: isSet(object.type) ? orderTypeFromJSON(object.type) : 0,
+      orderType: isSet(object.orderType) ? orderTypeFromJSON(object.orderType) : 0,
       baseToken: isSet(object.baseToken) ? TokenIdentifier.fromJSON(object.baseToken) : undefined,
       quoteToken: isSet(object.quoteToken) ? TokenIdentifier.fromJSON(object.quoteToken) : undefined,
       amount: isSet(object.amount) ? globalThis.String(object.amount) : "",
@@ -1271,8 +1282,8 @@ export const SwapTokensRequest = {
 
   toJSON(message: SwapTokensRequest): unknown {
     const obj: any = {};
-    if (message.type !== 0) {
-      obj.type = orderTypeToJSON(message.type);
+    if (message.orderType !== 0) {
+      obj.orderType = orderTypeToJSON(message.orderType);
     }
     if (message.baseToken !== undefined) {
       obj.baseToken = TokenIdentifier.toJSON(message.baseToken);
@@ -1303,7 +1314,7 @@ export const SwapTokensRequest = {
   },
   fromPartial<I extends Exact<DeepPartial<SwapTokensRequest>, I>>(object: I): SwapTokensRequest {
     const message = createBaseSwapTokensRequest();
-    message.type = object.type ?? 0;
+    message.orderType = object.orderType ?? 0;
     message.baseToken = (object.baseToken !== undefined && object.baseToken !== null)
       ? TokenIdentifier.fromPartial(object.baseToken)
       : undefined;
@@ -1508,12 +1519,13 @@ export const TransactionPlanError_DetailsEntry = {
 function createBaseSwapTokensResponse(): SwapTokensResponse {
   return {
     status: 0,
-    type: 0,
+    orderType: 0,
     baseToken: undefined,
     quoteToken: undefined,
     feeBreakdown: undefined,
     transactionPlan: undefined,
     estimation: undefined,
+    providerTracking: undefined,
     error: undefined,
   };
 }
@@ -1523,8 +1535,8 @@ export const SwapTokensResponse = {
     if (message.status !== 0) {
       writer.uint32(8).int32(message.status);
     }
-    if (message.type !== 0) {
-      writer.uint32(16).int32(message.type);
+    if (message.orderType !== 0) {
+      writer.uint32(16).int32(message.orderType);
     }
     if (message.baseToken !== undefined) {
       TokenIdentifier.encode(message.baseToken, writer.uint32(26).fork()).ldelim();
@@ -1541,8 +1553,11 @@ export const SwapTokensResponse = {
     if (message.estimation !== undefined) {
       SwapEstimation.encode(message.estimation, writer.uint32(58).fork()).ldelim();
     }
+    if (message.providerTracking !== undefined) {
+      ProviderTrackingInfo.encode(message.providerTracking, writer.uint32(66).fork()).ldelim();
+    }
     if (message.error !== undefined) {
-      TransactionPlanError.encode(message.error, writer.uint32(66).fork()).ldelim();
+      TransactionPlanError.encode(message.error, writer.uint32(74).fork()).ldelim();
     }
     return writer;
   },
@@ -1566,7 +1581,7 @@ export const SwapTokensResponse = {
             break;
           }
 
-          message.type = reader.int32() as any;
+          message.orderType = reader.int32() as any;
           continue;
         case 3:
           if (tag !== 26) {
@@ -1608,6 +1623,13 @@ export const SwapTokensResponse = {
             break;
           }
 
+          message.providerTracking = ProviderTrackingInfo.decode(reader, reader.uint32());
+          continue;
+        case 9:
+          if (tag !== 74) {
+            break;
+          }
+
           message.error = TransactionPlanError.decode(reader, reader.uint32());
           continue;
       }
@@ -1622,12 +1644,15 @@ export const SwapTokensResponse = {
   fromJSON(object: any): SwapTokensResponse {
     return {
       status: isSet(object.status) ? transactionPlanStatusFromJSON(object.status) : 0,
-      type: isSet(object.type) ? orderTypeFromJSON(object.type) : 0,
+      orderType: isSet(object.orderType) ? orderTypeFromJSON(object.orderType) : 0,
       baseToken: isSet(object.baseToken) ? TokenIdentifier.fromJSON(object.baseToken) : undefined,
       quoteToken: isSet(object.quoteToken) ? TokenIdentifier.fromJSON(object.quoteToken) : undefined,
       feeBreakdown: isSet(object.feeBreakdown) ? FeeBreakdown.fromJSON(object.feeBreakdown) : undefined,
       transactionPlan: isSet(object.transactionPlan) ? TransactionPlan.fromJSON(object.transactionPlan) : undefined,
       estimation: isSet(object.estimation) ? SwapEstimation.fromJSON(object.estimation) : undefined,
+      providerTracking: isSet(object.providerTracking)
+        ? ProviderTrackingInfo.fromJSON(object.providerTracking)
+        : undefined,
       error: isSet(object.error) ? TransactionPlanError.fromJSON(object.error) : undefined,
     };
   },
@@ -1637,8 +1662,8 @@ export const SwapTokensResponse = {
     if (message.status !== 0) {
       obj.status = transactionPlanStatusToJSON(message.status);
     }
-    if (message.type !== 0) {
-      obj.type = orderTypeToJSON(message.type);
+    if (message.orderType !== 0) {
+      obj.orderType = orderTypeToJSON(message.orderType);
     }
     if (message.baseToken !== undefined) {
       obj.baseToken = TokenIdentifier.toJSON(message.baseToken);
@@ -1655,6 +1680,9 @@ export const SwapTokensResponse = {
     if (message.estimation !== undefined) {
       obj.estimation = SwapEstimation.toJSON(message.estimation);
     }
+    if (message.providerTracking !== undefined) {
+      obj.providerTracking = ProviderTrackingInfo.toJSON(message.providerTracking);
+    }
     if (message.error !== undefined) {
       obj.error = TransactionPlanError.toJSON(message.error);
     }
@@ -1667,7 +1695,7 @@ export const SwapTokensResponse = {
   fromPartial<I extends Exact<DeepPartial<SwapTokensResponse>, I>>(object: I): SwapTokensResponse {
     const message = createBaseSwapTokensResponse();
     message.status = object.status ?? 0;
-    message.type = object.type ?? 0;
+    message.orderType = object.orderType ?? 0;
     message.baseToken = (object.baseToken !== undefined && object.baseToken !== null)
       ? TokenIdentifier.fromPartial(object.baseToken)
       : undefined;
@@ -1682,6 +1710,9 @@ export const SwapTokensResponse = {
       : undefined;
     message.estimation = (object.estimation !== undefined && object.estimation !== null)
       ? SwapEstimation.fromPartial(object.estimation)
+      : undefined;
+    message.providerTracking = (object.providerTracking !== undefined && object.providerTracking !== null)
+      ? ProviderTrackingInfo.fromPartial(object.providerTracking)
       : undefined;
     message.error = (object.error !== undefined && object.error !== null)
       ? TransactionPlanError.fromPartial(object.error)
@@ -2028,6 +2059,95 @@ export const SwapEstimation = {
     message.effectivePrice = object.effectivePrice ?? "";
     message.timeEstimate = object.timeEstimate ?? "";
     message.expiration = object.expiration ?? "";
+    return message;
+  },
+};
+
+function createBaseProviderTrackingInfo(): ProviderTrackingInfo {
+  return { requestId: "", providerName: "", explorerUrl: "" };
+}
+
+export const ProviderTrackingInfo = {
+  encode(message: ProviderTrackingInfo, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.requestId !== "") {
+      writer.uint32(10).string(message.requestId);
+    }
+    if (message.providerName !== "") {
+      writer.uint32(18).string(message.providerName);
+    }
+    if (message.explorerUrl !== "") {
+      writer.uint32(26).string(message.explorerUrl);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): ProviderTrackingInfo {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseProviderTrackingInfo();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.requestId = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.providerName = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.explorerUrl = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ProviderTrackingInfo {
+    return {
+      requestId: isSet(object.requestId) ? globalThis.String(object.requestId) : "",
+      providerName: isSet(object.providerName) ? globalThis.String(object.providerName) : "",
+      explorerUrl: isSet(object.explorerUrl) ? globalThis.String(object.explorerUrl) : "",
+    };
+  },
+
+  toJSON(message: ProviderTrackingInfo): unknown {
+    const obj: any = {};
+    if (message.requestId !== "") {
+      obj.requestId = message.requestId;
+    }
+    if (message.providerName !== "") {
+      obj.providerName = message.providerName;
+    }
+    if (message.explorerUrl !== "") {
+      obj.explorerUrl = message.explorerUrl;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ProviderTrackingInfo>, I>>(base?: I): ProviderTrackingInfo {
+    return ProviderTrackingInfo.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ProviderTrackingInfo>, I>>(object: I): ProviderTrackingInfo {
+    const message = createBaseProviderTrackingInfo();
+    message.requestId = object.requestId ?? "";
+    message.providerName = object.providerName ?? "";
+    message.explorerUrl = object.explorerUrl ?? "";
     return message;
   },
 };
