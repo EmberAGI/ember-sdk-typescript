@@ -117,7 +117,7 @@ enum OrderType {
 // Identifies a token on a specific chain
 message TokenIdentifier {
   string chain_id = 1;
-  string token_id = 2;
+  string address = 2;
 }
 
 // Status of the transaction plan creation
@@ -129,7 +129,7 @@ enum TransactionPlanStatus {
 
 // Request to swap tokens
 message SwapTokensRequest {
-  OrderType type = 1;
+  OrderType order_type = 1;
   TokenIdentifier base_token = 2;
   TokenIdentifier quote_token = 3;
   string amount = 4;
@@ -149,19 +149,22 @@ message TransactionPlanError {
 // Response containing the swap details
 message SwapTokensResponse {
   TransactionPlanStatus status = 1;  // Changed from SwapStatus
-  OrderType type = 2;
+  OrderType order_type = 2;
   
   // Echo back the token details
   TokenIdentifier base_token = 3;
   TokenIdentifier quote_token = 4;
   
   // Fee and transaction details
-  FeeBreakdown fee_breakdown = 5;
-  TransactionPlan transaction_plan = 6;
-  SwapEstimation estimation = 7;
+  optional FeeBreakdown fee_breakdown = 5;
+  optional TransactionPlan transaction_plan = 6;
+  optional SwapEstimation estimation = 7;
+
+  // Tracking information from the provider
+  optional ProviderTrackingInfo provider_tracking = 8;
   
   // Error details if status is ERROR
-  optional TransactionPlanError error = 8;  // Changed from SwapError
+  optional TransactionPlanError error = 9;  // Changed from SwapError
 }
 
 // Transaction type for different chains
@@ -196,4 +199,11 @@ message SwapEstimation {
   string effective_price = 3;
   string time_estimate = 4;
   string expiration = 5;
+}
+
+// Tracking information from the provider
+message ProviderTrackingInfo {
+  string request_id = 1;
+  string provider_name = 2;
+  string explorer_url = 3;
 }

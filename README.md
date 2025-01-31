@@ -36,7 +36,7 @@ import EmberClient from '@emberai/sdk-typescript';
 
 // Create a client instance
 const client = new EmberClient({
-  endpoint: 'api.emberai.xyz:443', // Replace with actual endpoint
+  endpoint: 'grpc.api.emberai.xyz:50051',
   apiKey: 'your-api-key',       // Optional
 });
 
@@ -59,152 +59,12 @@ const tokens = await client.getTokens({
 client.close();
 ```
 
-## Advanced Example: LangChain Agent for Token Swaps
+## Examples
 
-Here's an example of using the SDK with LangChain to create an AI agent that can perform token swaps. This example demonstrates:
-- Creating LangChain tools from SDK methods
-- Setting up an OpenAI-powered agent
-- Natural language interaction for swaps
-- Error handling
-- Resource cleanup
+The SDK comes with several example implementations in the [`examples`](./examples) directory:
 
-```typescript
-import { ChatOpenAI } from "@langchain/openai";
-import { createOpenAIToolsAgent, AgentExecutor } from "langchain/agents";
-import { pull } from "langchain/hub";
-import { StructuredTool } from "@langchain/core/tools";
-import EmberClient, { OrderType } from '@emberai/sdk-typescript';
-import { z } from "zod";
-
-// Create a tool for getting chain information
-class GetChainsTool extends StructuredTool {
-  name = "get_chains";
-  description = "Get a list of supported blockchain chains.";
-  client: EmberClient;
-
-  constructor(client: EmberClient) {
-    super();
-    this.client = client;
-  }
-
-  async _call() {
-    const { chains } = await this.client.getChains({
-      pageSize: 10,
-      filter: '',
-      pageToken: '',
-    });
-    return JSON.stringify(chains);
-  }
-}
-
-// Create a tool for getting tokens
-class GetTokensTool extends StructuredTool {
-  name = "get_tokens";
-  description = "Get tokens available on a specific chain.";
-  client: EmberClient;
-
-  constructor(client: EmberClient) {
-    super();
-    this.client = client;
-  }
-
-  schema = z.object({
-    chainId: z.string().describe("The ID of the chain to get tokens for"),
-  });
-
-  async _call({ chainId }: { chainId: string }) {
-    const { tokens } = await this.client.getTokens({
-      chainId,
-      pageSize: 100,
-      filter: '',
-      pageToken: '',
-    });
-    return JSON.stringify(tokens);
-  }
-}
-
-// Create a tool for swapping tokens
-class SwapTokensTool extends StructuredTool {
-  name = "swap_tokens";
-  description = "Swap one token for another on a specific chain.";
-  client: EmberClient;
-
-  constructor(client: EmberClient) {
-    super();
-    this.client = client;
-  }
-
-  schema = z.object({
-    chainId: z.string().describe("The chain ID where the swap will occur"),
-    baseTokenId: z.string().describe("The ID of the token you want to buy"),
-    quoteTokenId: z.string().describe("The ID of the token you want to sell"),
-    amount: z.string().describe("The amount to swap in the smallest unit"),
-    recipient: z.string().describe("The wallet address to receive the tokens"),
-  });
-
-  async _call({ chainId, baseTokenId, quoteTokenId, amount, recipient }: {
-    chainId: string;
-    baseTokenId: string;
-    quoteTokenId: string;
-    amount: string;
-    recipient: string;
-  }) {
-    const swap = await this.client.swapTokens({
-      type: OrderType.MARKET_BUY,
-      baseToken: { chainId, tokenId: baseTokenId },
-      quoteToken: { chainId, tokenId: quoteTokenId },
-      amount,
-      recipient,
-    });
-    return JSON.stringify(swap);
-  }
-}
-
-async function main() {
-  const client = new EmberClient({
-    endpoint: 'api.emberai.xyz:443',
-    apiKey: process.env.EMBER_API_KEY,
-  });
-
-  try {
-    // Create tools
-    const tools = [
-      new GetChainsTool(client),
-      new GetTokensTool(client),
-      new SwapTokensTool(client),
-    ];
-
-    // Create the LLM and agent
-    const llm = new ChatOpenAI({
-      modelName: "gpt-4",
-      temperature: 0,
-    });
-
-    const prompt = await pull("hwchase17/openai-tools-agent");
-    const agent = await createOpenAIToolsAgent({
-      llm,
-      tools,
-      prompt,
-    });
-    const agentExecutor = new AgentExecutor({
-      agent,
-      tools,
-    });
-
-    // Execute a swap through natural language
-    const result = await agentExecutor.invoke({
-      input: "I want to swap 1 WETH worth of USDC on Ethereum.",
-    });
-
-    console.log("Agent Response:", result.output);
-
-  } finally {
-    client.close();
-  }
-}
-```
-
-You can find more examples in the [examples](./examples) directory.
+- [`token-swap.ts`](./examples/token-swap.ts) - A basic example demonstrating how to perform token swaps using the SDK with Viem for Ethereum interaction. Shows wallet setup, token swapping, and transaction handling.
+- [`langchain-swap.ts`](./examples/langchain-swap.ts) - An advanced example showing how to integrate the SDK with LangChain to create an AI agent that can perform token swaps through natural language commands. Demonstrates creating custom tools, setting up an OpenAI-powered agent, and handling complex interactions.
 
 ## Error Handling
 
