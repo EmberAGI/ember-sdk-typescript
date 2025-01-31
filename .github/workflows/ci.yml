@@ -45,11 +45,4 @@ jobs:
       - name: Checkout the repo
         uses: actions/checkout@v4
 
-      - name: Set up PDM
-        uses: pdm-project/setup-pdm@v4
-        with:
-          cache: true
-          cache-dependency-path: integration_tests/pdm.lock
-          python-version: 3.13
-
       # TODO: Add a steps to run the integration tests

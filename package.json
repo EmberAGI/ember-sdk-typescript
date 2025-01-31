@@ -23,7 +23,7 @@
     "clean": "rm -rf dist src/generated",
     "prebuild": "pnpm run clean",
     "test": "tsx --test test/**/*.test.ts",
-    "lint": "tsc --noEmit",
+    "lint:check": "tsc --noEmit",
     "generate-proto": "./scripts/generate-proto.sh"
   },
   "keywords": [
