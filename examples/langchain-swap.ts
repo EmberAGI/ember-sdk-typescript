@@ -2,8 +2,11 @@ import { ChatOpenAI } from "@langchain/openai";
 import { createOpenAIToolsAgent, AgentExecutor } from "langchain/agents";
 import { pull } from "langchain/hub";
 import { StructuredTool } from "@langchain/core/tools";
-import EmberClient, { OrderType } from '../src/index.js';
+import EmberClient, { OrderType, TransactionType } from '../src/index.js';
 import { z } from "zod";
+import { createPublicClient, createWalletClient, http } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { mainnet } from 'viem/chains';
 
 // Create tools for the Ember SDK operations
 class GetChainsTool extends StructuredTool {
@@ -55,10 +58,14 @@ class SwapTokensTool extends StructuredTool {
   name = "swap_tokens";
   description = "Swap one token for another on a specific chain.";
   client: EmberClient;
+  publicClient: any;
+  walletClient: any;
 
-  constructor(client: EmberClient) {
+  constructor(client: EmberClient, publicClient: any, walletClient: any) {
     super();
     this.client = client;
+    this.publicClient = publicClient;
+    this.walletClient = walletClient;
   }
 
   schema = z.object({
@@ -77,19 +84,73 @@ class SwapTokensTool extends StructuredTool {
     recipient: string;
   }) {
     const swap = await this.client.swapTokens({
-      type: OrderType.MARKET_BUY,
+      orderType: OrderType.MARKET_BUY,
       baseToken: {
         chainId,
-        tokenId: baseTokenId,
+        address: baseTokenId,
       },
       quoteToken: {
         chainId,
-        tokenId: quoteTokenId,
+        address: quoteTokenId,
       },
       amount,
       recipient,
     });
-    return JSON.stringify(swap);
+
+    // Check if we have a valid transaction plan
+    if (!swap.transactionPlan) {
+      throw new Error('No transaction plan received');
+    }
+
+    // Verify this is an EVM transaction
+    if (swap.transactionPlan.type !== TransactionType.EVM_TX) {
+      throw new Error('Expected EVM transaction');
+    }
+
+    // Get the latest gas estimate
+    const gasEstimate = await this.publicClient.estimateGas({
+      account: recipient,
+      to: swap.transactionPlan.to as `0x${string}`,
+      data: swap.transactionPlan.data as `0x${string}`,
+      value: BigInt(swap.transactionPlan.value || '0'),
+    });
+
+    // Send the transaction
+    const hash = await this.walletClient.sendTransaction({
+      to: swap.transactionPlan.to as `0x${string}`,
+      data: swap.transactionPlan.data as `0x${string}`,
+      value: BigInt(swap.transactionPlan.value || '0'),
+      gas: gasEstimate,
+    });
+
+    console.log('Transaction sent:', { hash });
+
+    // Create a clickable transaction link using provider tracking info
+    if (swap.providerTracking?.explorerUrl) {
+      const txLink = `${swap.providerTracking.explorerUrl}${hash}`;
+      console.log('View provider transaction status:', txLink);
+    }
+
+    // Wait for the transaction to be mined
+    const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
+
+    // Add provider tracking information and transaction details to the response
+    const response = {
+      ...swap,
+      transaction: {
+        hash,
+        status: receipt.status === 'success' ? 'success' : 'failed',
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed.toString(),
+      },
+      providerInfo: swap.providerTracking ? {
+        provider: swap.providerTracking.providerName,
+        requestId: swap.providerTracking.requestId,
+        explorerUrl: swap.providerTracking.explorerUrl,
+      } : undefined,
+    };
+
+    return JSON.stringify(response);
   }
 }
 
@@ -102,14 +163,29 @@ async function main() {
     throw new Error("EMBER_API_KEY environment variable is required");
   }
 
-  if (!process.env.WALLET_ADDRESS) {
-    throw new Error("WALLET_ADDRESS environment variable is required");
+  if (!process.env.PRIVATE_KEY) {
+    throw new Error("PRIVATE_KEY environment variable is required");
   }
 
   // Initialize the Ember client
   const client = new EmberClient({
-    endpoint: 'api.emberai.xyz:443',
+    endpoint: 'grpc.api.emberai.xyz:50051',
     apiKey: process.env.EMBER_API_KEY,
+  });
+
+  // Initialize Ethereum clients
+  const transport = http(process.env.RPC_URL || 'https://eth.llamarpc.com');
+  const publicClient = createPublicClient({
+    chain: mainnet,
+    transport,
+  });
+
+  // Create wallet from private key
+  const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`);
+  const walletClient = createWalletClient({
+    account,
+    chain: mainnet,
+    transport,
   });
 
   try {
@@ -117,7 +193,7 @@ async function main() {
     const tools = [
       new GetChainsTool(client),
       new GetTokensTool(client),
-      new SwapTokensTool(client),
+      new SwapTokensTool(client, publicClient, walletClient),
     ];
 
     // Create the LLM
