@@ -206,6 +206,64 @@ export function transactionTypeToJSON(object: TransactionType): string {
   }
 }
 
+/** New messages for provider tracking status */
+export enum ProviderStatus {
+  PROVIDER_STATUS_UNSPECIFIED = 0,
+  PROVIDER_STATUS_SUCCESS = 1,
+  PROVIDER_STATUS_PARTIAL_SUCCESS = 2,
+  PROVIDER_STATUS_NEEDS_GAS = 3,
+  PROVIDER_STATUS_NOT_FOUND = 4,
+  PROVIDER_STATUS_ONGOING = 5,
+  UNRECOGNIZED = -1,
+}
+
+export function providerStatusFromJSON(object: any): ProviderStatus {
+  switch (object) {
+    case 0:
+    case "PROVIDER_STATUS_UNSPECIFIED":
+      return ProviderStatus.PROVIDER_STATUS_UNSPECIFIED;
+    case 1:
+    case "PROVIDER_STATUS_SUCCESS":
+      return ProviderStatus.PROVIDER_STATUS_SUCCESS;
+    case 2:
+    case "PROVIDER_STATUS_PARTIAL_SUCCESS":
+      return ProviderStatus.PROVIDER_STATUS_PARTIAL_SUCCESS;
+    case 3:
+    case "PROVIDER_STATUS_NEEDS_GAS":
+      return ProviderStatus.PROVIDER_STATUS_NEEDS_GAS;
+    case 4:
+    case "PROVIDER_STATUS_NOT_FOUND":
+      return ProviderStatus.PROVIDER_STATUS_NOT_FOUND;
+    case 5:
+    case "PROVIDER_STATUS_ONGOING":
+      return ProviderStatus.PROVIDER_STATUS_ONGOING;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return ProviderStatus.UNRECOGNIZED;
+  }
+}
+
+export function providerStatusToJSON(object: ProviderStatus): string {
+  switch (object) {
+    case ProviderStatus.PROVIDER_STATUS_UNSPECIFIED:
+      return "PROVIDER_STATUS_UNSPECIFIED";
+    case ProviderStatus.PROVIDER_STATUS_SUCCESS:
+      return "PROVIDER_STATUS_SUCCESS";
+    case ProviderStatus.PROVIDER_STATUS_PARTIAL_SUCCESS:
+      return "PROVIDER_STATUS_PARTIAL_SUCCESS";
+    case ProviderStatus.PROVIDER_STATUS_NEEDS_GAS:
+      return "PROVIDER_STATUS_NEEDS_GAS";
+    case ProviderStatus.PROVIDER_STATUS_NOT_FOUND:
+      return "PROVIDER_STATUS_NOT_FOUND";
+    case ProviderStatus.PROVIDER_STATUS_ONGOING:
+      return "PROVIDER_STATUS_ONGOING";
+    case ProviderStatus.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
 export interface Chain {
   chainId: string;
   type: ChainType;
@@ -354,6 +412,23 @@ export interface ProviderTrackingInfo {
   requestId: string;
   providerName: string;
   explorerUrl: string;
+}
+
+export interface GetProviderTrackingStatusRequest {
+  requestId: string;
+  transactionId: string;
+}
+
+export interface ProviderTrackingStatus {
+  requestId: string;
+  transactionId: string;
+  providerName: string;
+  explorerUrl: string;
+  status: ProviderStatus;
+}
+
+export interface GetProviderTrackingStatusResponse {
+  trackingStatus?: ProviderTrackingStatus | undefined;
 }
 
 function createBaseChain(): Chain {
@@ -2152,6 +2227,268 @@ export const ProviderTrackingInfo = {
   },
 };
 
+function createBaseGetProviderTrackingStatusRequest(): GetProviderTrackingStatusRequest {
+  return { requestId: "", transactionId: "" };
+}
+
+export const GetProviderTrackingStatusRequest = {
+  encode(message: GetProviderTrackingStatusRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.requestId !== "") {
+      writer.uint32(10).string(message.requestId);
+    }
+    if (message.transactionId !== "") {
+      writer.uint32(18).string(message.transactionId);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): GetProviderTrackingStatusRequest {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetProviderTrackingStatusRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.requestId = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.transactionId = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetProviderTrackingStatusRequest {
+    return {
+      requestId: isSet(object.requestId) ? globalThis.String(object.requestId) : "",
+      transactionId: isSet(object.transactionId) ? globalThis.String(object.transactionId) : "",
+    };
+  },
+
+  toJSON(message: GetProviderTrackingStatusRequest): unknown {
+    const obj: any = {};
+    if (message.requestId !== "") {
+      obj.requestId = message.requestId;
+    }
+    if (message.transactionId !== "") {
+      obj.transactionId = message.transactionId;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<GetProviderTrackingStatusRequest>, I>>(
+    base?: I,
+  ): GetProviderTrackingStatusRequest {
+    return GetProviderTrackingStatusRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GetProviderTrackingStatusRequest>, I>>(
+    object: I,
+  ): GetProviderTrackingStatusRequest {
+    const message = createBaseGetProviderTrackingStatusRequest();
+    message.requestId = object.requestId ?? "";
+    message.transactionId = object.transactionId ?? "";
+    return message;
+  },
+};
+
+function createBaseProviderTrackingStatus(): ProviderTrackingStatus {
+  return { requestId: "", transactionId: "", providerName: "", explorerUrl: "", status: 0 };
+}
+
+export const ProviderTrackingStatus = {
+  encode(message: ProviderTrackingStatus, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.requestId !== "") {
+      writer.uint32(10).string(message.requestId);
+    }
+    if (message.transactionId !== "") {
+      writer.uint32(18).string(message.transactionId);
+    }
+    if (message.providerName !== "") {
+      writer.uint32(26).string(message.providerName);
+    }
+    if (message.explorerUrl !== "") {
+      writer.uint32(34).string(message.explorerUrl);
+    }
+    if (message.status !== 0) {
+      writer.uint32(40).int32(message.status);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): ProviderTrackingStatus {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseProviderTrackingStatus();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.requestId = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.transactionId = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.providerName = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.explorerUrl = reader.string();
+          continue;
+        case 5:
+          if (tag !== 40) {
+            break;
+          }
+
+          message.status = reader.int32() as any;
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ProviderTrackingStatus {
+    return {
+      requestId: isSet(object.requestId) ? globalThis.String(object.requestId) : "",
+      transactionId: isSet(object.transactionId) ? globalThis.String(object.transactionId) : "",
+      providerName: isSet(object.providerName) ? globalThis.String(object.providerName) : "",
+      explorerUrl: isSet(object.explorerUrl) ? globalThis.String(object.explorerUrl) : "",
+      status: isSet(object.status) ? providerStatusFromJSON(object.status) : 0,
+    };
+  },
+
+  toJSON(message: ProviderTrackingStatus): unknown {
+    const obj: any = {};
+    if (message.requestId !== "") {
+      obj.requestId = message.requestId;
+    }
+    if (message.transactionId !== "") {
+      obj.transactionId = message.transactionId;
+    }
+    if (message.providerName !== "") {
+      obj.providerName = message.providerName;
+    }
+    if (message.explorerUrl !== "") {
+      obj.explorerUrl = message.explorerUrl;
+    }
+    if (message.status !== 0) {
+      obj.status = providerStatusToJSON(message.status);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ProviderTrackingStatus>, I>>(base?: I): ProviderTrackingStatus {
+    return ProviderTrackingStatus.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ProviderTrackingStatus>, I>>(object: I): ProviderTrackingStatus {
+    const message = createBaseProviderTrackingStatus();
+    message.requestId = object.requestId ?? "";
+    message.transactionId = object.transactionId ?? "";
+    message.providerName = object.providerName ?? "";
+    message.explorerUrl = object.explorerUrl ?? "";
+    message.status = object.status ?? 0;
+    return message;
+  },
+};
+
+function createBaseGetProviderTrackingStatusResponse(): GetProviderTrackingStatusResponse {
+  return { trackingStatus: undefined };
+}
+
+export const GetProviderTrackingStatusResponse = {
+  encode(message: GetProviderTrackingStatusResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.trackingStatus !== undefined) {
+      ProviderTrackingStatus.encode(message.trackingStatus, writer.uint32(10).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): GetProviderTrackingStatusResponse {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetProviderTrackingStatusResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.trackingStatus = ProviderTrackingStatus.decode(reader, reader.uint32());
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetProviderTrackingStatusResponse {
+    return {
+      trackingStatus: isSet(object.trackingStatus) ? ProviderTrackingStatus.fromJSON(object.trackingStatus) : undefined,
+    };
+  },
+
+  toJSON(message: GetProviderTrackingStatusResponse): unknown {
+    const obj: any = {};
+    if (message.trackingStatus !== undefined) {
+      obj.trackingStatus = ProviderTrackingStatus.toJSON(message.trackingStatus);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<GetProviderTrackingStatusResponse>, I>>(
+    base?: I,
+  ): GetProviderTrackingStatusResponse {
+    return GetProviderTrackingStatusResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GetProviderTrackingStatusResponse>, I>>(
+    object: I,
+  ): GetProviderTrackingStatusResponse {
+    const message = createBaseGetProviderTrackingStatusResponse();
+    message.trackingStatus = (object.trackingStatus !== undefined && object.trackingStatus !== null)
+      ? ProviderTrackingStatus.fromPartial(object.trackingStatus)
+      : undefined;
+    return message;
+  },
+};
+
 /**
  * The DataService provides information about chains and tokens.
  *
@@ -2335,6 +2672,74 @@ export const CreateTransactionClient = makeGenericClientConstructor(
 ) as unknown as {
   new (address: string, credentials: ChannelCredentials, options?: Partial<ClientOptions>): CreateTransactionClient;
   service: typeof CreateTransactionService;
+  serviceName: string;
+};
+
+/** New service for transaction execution */
+export type TransactionExecutionService = typeof TransactionExecutionService;
+export const TransactionExecutionService = {
+  /**
+   * Gets the tracking status of a transaction
+   * Error codes:
+   *   - INVALID_ARGUMENT if request parameters are invalid
+   *   - NOT_FOUND if the transaction cannot be found
+   *   - INTERNAL for server-side issues
+   */
+  getProviderTrackingStatus: {
+    path: "/ember_agents_onchain.v1.TransactionExecution/GetProviderTrackingStatus",
+    requestStream: false,
+    responseStream: false,
+    requestSerialize: (value: GetProviderTrackingStatusRequest) =>
+      Buffer.from(GetProviderTrackingStatusRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer) => GetProviderTrackingStatusRequest.decode(value),
+    responseSerialize: (value: GetProviderTrackingStatusResponse) =>
+      Buffer.from(GetProviderTrackingStatusResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer) => GetProviderTrackingStatusResponse.decode(value),
+  },
+} as const;
+
+export interface TransactionExecutionServer extends UntypedServiceImplementation {
+  /**
+   * Gets the tracking status of a transaction
+   * Error codes:
+   *   - INVALID_ARGUMENT if request parameters are invalid
+   *   - NOT_FOUND if the transaction cannot be found
+   *   - INTERNAL for server-side issues
+   */
+  getProviderTrackingStatus: handleUnaryCall<GetProviderTrackingStatusRequest, GetProviderTrackingStatusResponse>;
+}
+
+export interface TransactionExecutionClient extends Client {
+  /**
+   * Gets the tracking status of a transaction
+   * Error codes:
+   *   - INVALID_ARGUMENT if request parameters are invalid
+   *   - NOT_FOUND if the transaction cannot be found
+   *   - INTERNAL for server-side issues
+   */
+  getProviderTrackingStatus(
+    request: GetProviderTrackingStatusRequest,
+    callback: (error: ServiceError | null, response: GetProviderTrackingStatusResponse) => void,
+  ): ClientUnaryCall;
+  getProviderTrackingStatus(
+    request: GetProviderTrackingStatusRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: GetProviderTrackingStatusResponse) => void,
+  ): ClientUnaryCall;
+  getProviderTrackingStatus(
+    request: GetProviderTrackingStatusRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: GetProviderTrackingStatusResponse) => void,
+  ): ClientUnaryCall;
+}
+
+export const TransactionExecutionClient = makeGenericClientConstructor(
+  TransactionExecutionService,
+  "ember_agents_onchain.v1.TransactionExecution",
+) as unknown as {
+  new (address: string, credentials: ChannelCredentials, options?: Partial<ClientOptions>): TransactionExecutionClient;
+  service: typeof TransactionExecutionService;
   serviceName: string;
 };
 

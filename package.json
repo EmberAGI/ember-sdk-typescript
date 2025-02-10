@@ -9,7 +9,8 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "files": [
@@ -22,7 +23,7 @@
     "dev": "tsx watch src/index.ts",
     "clean": "rm -rf dist src/generated",
     "prebuild": "pnpm run clean",
-    "test": "tsx --test test/**/*.test.ts",
+    "test": "mocha --require tsx 'test/**/*.test.ts'",
     "lint:check": "tsc --noEmit",
     "generate-proto": "./scripts/generate-proto.sh"
   },
@@ -46,9 +47,13 @@
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/github": "^11.0.1",
     "@semantic-release/npm": "^12.0.1",
+    "@types/chai": "^5.0.1",
     "@types/long": "^5.0.0",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^22.10.7",
+    "chai": "^5.1.2",
     "long": "^5.2.3",
+    "mocha": "^11.1.0",
     "protobufjs": "^7.2.5",
     "semantic-release": "^24.2.1",
     "ts-proto": "^1.181.2",
