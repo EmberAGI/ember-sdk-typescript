@@ -38,6 +38,16 @@ service CreateTransaction {
   rpc SwapTokens(SwapTokensRequest) returns (SwapTokensResponse) {}
 }
 
+// New service for transaction execution
+service TransactionExecution {
+  // Gets the tracking status of a transaction
+  // Error codes:
+  //   - INVALID_ARGUMENT if request parameters are invalid
+  //   - NOT_FOUND if the transaction cannot be found
+  //   - INTERNAL for server-side issues
+  rpc GetProviderTrackingStatus(GetProviderTrackingStatusRequest) returns (GetProviderTrackingStatusResponse);
+}
+
 // Chain type enum
 enum ChainType {
   UNSPECIFIED = 0;
@@ -206,4 +216,31 @@ message ProviderTrackingInfo {
   string request_id = 1;
   string provider_name = 2;
   string explorer_url = 3;
+}
+
+// New messages for provider tracking status
+enum ProviderStatus {
+  PROVIDER_STATUS_UNSPECIFIED = 0;
+  PROVIDER_STATUS_SUCCESS = 1;
+  PROVIDER_STATUS_PARTIAL_SUCCESS = 2;
+  PROVIDER_STATUS_NEEDS_GAS = 3;
+  PROVIDER_STATUS_NOT_FOUND = 4;
+  PROVIDER_STATUS_ONGOING = 5;
+}
+
+message GetProviderTrackingStatusRequest {
+  string request_id = 1;
+  string transaction_id = 2;
+}
+
+message ProviderTrackingStatus {
+  string request_id = 1;
+  string transaction_id = 2;
+  string provider_name = 3;
+  string explorer_url = 4;
+  ProviderStatus status = 5;
+}
+
+message GetProviderTrackingStatusResponse {
+  ProviderTrackingStatus tracking_status = 1;
 }

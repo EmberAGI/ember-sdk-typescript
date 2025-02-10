@@ -109,6 +109,18 @@ async function main() {
       status: receipt.status === 'success' ? 'success' : 'failed',
     });
 
+    // Integrate provider tracking: use the existing swap's requestId and the transaction hash as transactionId
+    const requestId = swap.providerTracking?.requestId;
+    if (requestId) {
+      const trackingStatus = await client.getProviderTrackingStatus({
+        requestId,
+        transactionId: hash,
+      });
+      console.log('Provider Tracking Status:', trackingStatus);
+    } else {
+      console.log('No requestId available for provider tracking.');
+    }
+
   } catch (error) {
     console.error('Error:', error);
   } finally {

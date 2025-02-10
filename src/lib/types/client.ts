@@ -5,6 +5,8 @@ import type {
   GetTokensResponse,
   SwapTokensRequest,
   SwapTokensResponse,
+  GetProviderTrackingStatusRequest,
+  GetProviderTrackingStatusResponse,
 } from '../../generated/onchain_actions.js';
 
 export interface EmberClientConfig {
@@ -25,6 +27,9 @@ export interface EmberClient {
   
   /** Create a token swap transaction */
   swapTokens(request: SwapTokensRequest): Promise<SwapTokensResponse>;
+  
+  /** Get the tracking status of a transaction from a provider */
+  getProviderTrackingStatus(request: GetProviderTrackingStatusRequest): Promise<GetProviderTrackingStatusResponse>;
   
   /** Close the client connection */
   close(): void;
