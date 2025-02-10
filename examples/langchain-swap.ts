@@ -133,6 +133,23 @@ class SwapTokensTool extends StructuredTool {
 
     // Wait for the transaction to be mined
     const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
+    console.log('Transaction confirmed:', {
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed.toString(),
+      status: receipt.status === 'success' ? 'success' : 'failed',
+    });
+
+    // Integrate provider tracking: use the swap's requestId and transaction hash to track swap status
+    const requestId = swap.providerTracking?.requestId;
+    if (requestId) {
+      const trackingStatus = await this.client.getProviderTrackingStatus({
+        requestId,
+        transactionId: hash,
+      });
+      console.log('Provider Tracking Status:', trackingStatus);
+    } else {
+      console.log('No requestId available for provider tracking.');
+    }
 
     // Add provider tracking information and transaction details to the response
     const response = {
@@ -151,6 +168,30 @@ class SwapTokensTool extends StructuredTool {
     };
 
     return JSON.stringify(response);
+  }
+}
+
+class GetProviderTrackingStatusTool extends StructuredTool {
+  name = "get_provider_tracking_status";
+  description = "Get the status of a token swap from the provider using the requestId (from the swap response) and transactionId (transaction hash after submitting to blockchain).";
+  client: EmberClient;
+
+  constructor(client: EmberClient) {
+    super();
+    this.client = client;
+  }
+
+  schema = z.object({
+    requestId: z.string().describe("The requestId received from the swap response"),
+    transactionId: z.string().describe("The transaction hash received after submitting the transaction to the blockchain"),
+  });
+
+  async _call({ requestId, transactionId }: { requestId: string; transactionId: string }) {
+    const trackingStatus = await this.client.getProviderTrackingStatus({
+      requestId,
+      transactionId,
+    });
+    return JSON.stringify(trackingStatus);
   }
 }
 
@@ -194,6 +235,7 @@ async function main() {
       new GetChainsTool(client),
       new GetTokensTool(client),
       new SwapTokensTool(client, publicClient, walletClient),
+      new GetProviderTrackingStatusTool(client),
     ];
 
     // Create the LLM
