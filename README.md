@@ -89,11 +89,17 @@ docker compose run --rm proto
 # Start development environment
 docker compose up sdk
 
-# Run tests
-docker compose run --rm sdk pnpm test
-
 # Build the SDK
 docker compose run --rm sdk pnpm build
+
+# Run tests
+docker compose run --rm sdk pnpm test
+``` 
+
+_or_
+
+```bash
+docker compose run --rm -e TEST_ENV=live sdk pnpm test
 ```
 
 ### Local Development

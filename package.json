@@ -9,7 +9,8 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "files": [
@@ -22,7 +23,7 @@
     "dev": "tsx watch src/index.ts",
     "clean": "rm -rf dist src/generated",
     "prebuild": "pnpm run clean",
-    "test": "tsx --test test/**/*.test.ts",
+    "test": "mocha --require tsx 'test/**/*.test.ts'",
     "lint:check": "tsc --noEmit",
     "generate-proto": "./scripts/generate-proto.sh"
   },
@@ -43,9 +44,13 @@
   },
   "devDependencies": {
     "@grpc/grpc-js": "^1.12.5",
+    "@types/chai": "^5.0.1",
     "@types/long": "^5.0.0",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^22.10.7",
+    "chai": "^5.1.2",
     "long": "^5.2.3",
+    "mocha": "^11.1.0",
     "protobufjs": "^7.2.5",
     "ts-proto": "^1.181.2",
     "tsx": "^4.19.2",
