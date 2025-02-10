@@ -65,7 +65,7 @@
   },
   "release": {
     "branches": [
-      {"name": "main", "channel": "beta", "prerelease": "main"},
+      {"name": "main", "channel": "beta", "prerelease": "beta"},
       {"name": "latest"}
     ],
     "plugins": [
