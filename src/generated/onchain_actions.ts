@@ -20,6 +20,45 @@ import {
 import _m0 from "protobufjs/minimal.js";
 import { Timestamp } from "./google/protobuf/timestamp.js";
 
+export enum CapabilityType {
+  CAPABILITY_TYPE_UNSPECIFIED = 0,
+  SWAP = 1,
+  LENDING = 2,
+  UNRECOGNIZED = -1,
+}
+
+export function capabilityTypeFromJSON(object: any): CapabilityType {
+  switch (object) {
+    case 0:
+    case "CAPABILITY_TYPE_UNSPECIFIED":
+      return CapabilityType.CAPABILITY_TYPE_UNSPECIFIED;
+    case 1:
+    case "SWAP":
+      return CapabilityType.SWAP;
+    case 2:
+    case "LENDING":
+      return CapabilityType.LENDING;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return CapabilityType.UNRECOGNIZED;
+  }
+}
+
+export function capabilityTypeToJSON(object: CapabilityType): string {
+  switch (object) {
+    case CapabilityType.CAPABILITY_TYPE_UNSPECIFIED:
+      return "CAPABILITY_TYPE_UNSPECIFIED";
+    case CapabilityType.SWAP:
+      return "SWAP";
+    case CapabilityType.LENDING:
+      return "LENDING";
+    case CapabilityType.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
 /** Chain type enum */
 export enum ChainType {
   UNSPECIFIED = 0,
@@ -264,6 +303,40 @@ export function providerStatusToJSON(object: ProviderStatus): string {
   }
 }
 
+export interface SwapCapability {
+  capabilityId: string;
+  supportedTokens: Token[];
+}
+
+export interface LendingCapability {
+  capabilityId: string;
+  currentSupplyApy: string;
+  currentBorrowApy: string;
+  underlyingToken?:
+    | Token
+    | undefined;
+  /** Maximum Loan-to-Value ratio for this lending/supply capability */
+  maxLtv: string;
+  /** Liquidation threshold for the borrowed asset */
+  liquidationThreshold: string;
+}
+
+/** The Capability wrapper uses a oneof to capture exactly one of the distinct types. */
+export interface Capability {
+  swapCapability?: SwapCapability | undefined;
+  lendingCapability?: LendingCapability | undefined;
+}
+
+/** Request to get capabilities, filtered by the type and paginated. */
+export interface GetCapabilitiesRequest {
+  type: CapabilityType;
+}
+
+/** Response containing the list of capabilities, with pagination token. */
+export interface GetCapabilitiesResponse {
+  capabilities: Capability[];
+}
+
 export interface Chain {
   chainId: string;
   type: ChainType;
@@ -278,18 +351,19 @@ export interface Chain {
 
 export interface Token {
   /** For native tokens, this may be empty. */
-  tokenId: string;
+  tokenUid?: TokenIdentifier | undefined;
   name: string;
   symbol: string;
   isNative: boolean;
   decimals: number;
-  chainId: string;
-  iconUri: string;
+  iconUri?:
+    | string
+    | undefined;
   /**
    * Store as a string to avoid floating-point precision issues.
    * e.g., "123.456789"
    */
-  usdPrice: string;
+  usdPrice?: string | undefined;
   isVetted: boolean;
   /** Timestamps */
   updatedAt?: Date | undefined;
@@ -298,13 +372,10 @@ export interface Token {
 /** Request to get chains, with optional filtering/pagination. */
 export interface GetChainsRequest {
   filter: string;
-  pageSize: number;
-  pageToken: string;
 }
 
 export interface GetChainsResponse {
   chains: Chain[];
-  nextPageToken: string;
 }
 
 /** Request to get tokens, with optional filter by chain_id, plus pagination. */
@@ -312,17 +383,15 @@ export interface GetTokensRequest {
   /** If empty, returns tokens across all chains. */
   chainId: string;
   filter: string;
-  pageSize: number;
-  pageToken: string;
 }
 
 export interface GetTokensResponse {
   tokens: Token[];
-  nextPageToken: string;
 }
 
 /** Identifies a token on a specific chain */
 export interface TokenIdentifier {
+  /** TODO: use number */
   chainId: string;
   address: string;
 }
@@ -383,7 +452,6 @@ export interface SwapTokensResponse {
 
 /** Fee breakdown for the swap */
 export interface FeeBreakdown {
-  gasFee: string;
   serviceFee: string;
   slippageCost: string;
   total: string;
@@ -430,6 +498,579 @@ export interface ProviderTrackingStatus {
 export interface GetProviderTrackingStatusResponse {
   trackingStatus?: ProviderTrackingStatus | undefined;
 }
+
+/** Request to borrow tokens. */
+export interface BorrowTokensRequest {
+  tokenUid?: TokenIdentifier | undefined;
+  amount: string;
+  borrowerWalletAddress: string;
+}
+
+/** Response containing the borrow transaction details. */
+export interface BorrowTokensResponse {
+  currentBorrowApy: string;
+  liquidationThreshold: string;
+  feeBreakdown?: FeeBreakdown | undefined;
+  transactions: TransactionPlan[];
+  error?: TransactionPlanError | undefined;
+}
+
+/** Request for wallet positions, with pagination support. */
+export interface GetWalletPositionsRequest {
+  walletAddress: string;
+}
+
+/** Response containing the list of wallet positions. */
+export interface GetWalletPositionsResponse {
+  positions: WalletPosition[];
+}
+
+/** A wrapper message that uses oneof to represent a wallet position of a specific type. */
+export interface WalletPosition {
+  /**
+   * Future extensions: VaultPosition vault_position = 2;
+   *                   TokenBalance token_balance = 3;
+   */
+  lendingPosition?: LendingPosition | undefined;
+}
+
+/** Represents details of a borrow position. This mirrors the schema defined in borrowAdapter.ts. */
+export interface BorrowPosition {
+  /** Wallet address of the borrower. */
+  borrowerWalletAddress: string;
+  /** Total liquidity available in USD. */
+  totalLiquidityUsd: string;
+  /** Total collateral value in USD. */
+  totalCollateralUsd: string;
+  /** Total amount borrowed in USD. */
+  totalBorrowsUsd: string;
+  /** Net worth calculated as collateral minus borrows in USD. */
+  netWorthUsd: string;
+  /** Health factor of the borrow position. */
+  healthFactor: string;
+  /** Detailed positions for each token in the borrow position. */
+  positions: TokenPosition[];
+}
+
+/** Represents a token position within a wallet's borrow position. */
+export interface TokenPosition {
+  /** The underlying asset for this token position. */
+  underlyingToken?:
+    | Token
+    | undefined;
+  /** Borrow rate for this token, if applicable. */
+  borrowRate: string;
+  /** Supply balance for this token (if supplied as collateral). */
+  supplyBalance: string;
+  /** Borrow balance for this token. */
+  borrowBalance: string;
+  /** Combined USD value of this position. */
+  valueUsd: string;
+}
+
+/** New message definitions for lending positions */
+export interface LendingPosition {
+  userReserves: LendTokenDetail[];
+  totalLiquidityUsd: string;
+  totalCollateralUsd: string;
+  totalBorrowsUsd: string;
+  netWorthUsd: string;
+  availableBorrowsUsd: string;
+  currentLoanToValue: string;
+  currentLiquidationThreshold: string;
+  healthFactor: string;
+}
+
+export interface LendTokenDetail {
+  token?: Token | undefined;
+  underlyingBalance: string;
+  underlyingBalanceUsd: string;
+  variableBorrows: string;
+  variableBorrowsUsd: string;
+  totalBorrows: string;
+  totalBorrowsUsd: string;
+}
+
+export interface RepayTokensRequest {
+  tokenUid?: TokenIdentifier | undefined;
+  amount: string;
+  borrowerWalletAddress: string;
+}
+
+export interface RepayTokensResponse {
+  tokenUid?: TokenIdentifier | undefined;
+  amount: string;
+  borrowerWalletAddress: string;
+  feeBreakdown?: FeeBreakdown | undefined;
+  transactions: TransactionPlan[];
+  error?: TransactionPlanError | undefined;
+}
+
+export interface SupplyTokensRequest {
+  tokenUid?: TokenIdentifier | undefined;
+  amount: string;
+  supplierWalletAddress: string;
+}
+
+export interface SupplyTokensResponse {
+  tokenUid?: TokenIdentifier | undefined;
+  amount: string;
+  supplierWalletAddress: string;
+  feeBreakdown?: FeeBreakdown | undefined;
+  transactions: TransactionPlan[];
+  error?: TransactionPlanError | undefined;
+}
+
+/** New message definitions for withdraw operations: */
+export interface WithdrawTokensRequest {
+  tokenUid?: TokenIdentifier | undefined;
+  amount: string;
+  lenderWalletAddress: string;
+}
+
+export interface WithdrawTokensResponse {
+  tokenUid?: TokenIdentifier | undefined;
+  amount: string;
+  lenderWalletAddress: string;
+  feeBreakdown?: FeeBreakdown | undefined;
+  transactions: TransactionPlan[];
+  error?: TransactionPlanError | undefined;
+}
+
+export interface GetLendingUserSummaryRequest {
+  userAddress: string;
+}
+
+export interface LendingReserve {
+  tokenUid?: TokenIdentifier | undefined;
+  symbol: string;
+  decimals: number;
+  supplyRate: string;
+  borrowRate: string;
+  reserveFactor: string;
+  reserveLiquidationThreshold: string;
+}
+
+export interface GetLendingReservesResponse {
+  reserves: LendingReserve[];
+}
+
+function createBaseSwapCapability(): SwapCapability {
+  return { capabilityId: "", supportedTokens: [] };
+}
+
+export const SwapCapability = {
+  encode(message: SwapCapability, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.capabilityId !== "") {
+      writer.uint32(10).string(message.capabilityId);
+    }
+    for (const v of message.supportedTokens) {
+      Token.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SwapCapability {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSwapCapability();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.capabilityId = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.supportedTokens.push(Token.decode(reader, reader.uint32()));
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SwapCapability {
+    return {
+      capabilityId: isSet(object.capabilityId) ? globalThis.String(object.capabilityId) : "",
+      supportedTokens: globalThis.Array.isArray(object?.supportedTokens)
+        ? object.supportedTokens.map((e: any) => Token.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: SwapCapability): unknown {
+    const obj: any = {};
+    if (message.capabilityId !== "") {
+      obj.capabilityId = message.capabilityId;
+    }
+    if (message.supportedTokens?.length) {
+      obj.supportedTokens = message.supportedTokens.map((e) => Token.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SwapCapability>, I>>(base?: I): SwapCapability {
+    return SwapCapability.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<SwapCapability>, I>>(object: I): SwapCapability {
+    const message = createBaseSwapCapability();
+    message.capabilityId = object.capabilityId ?? "";
+    message.supportedTokens = object.supportedTokens?.map((e) => Token.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseLendingCapability(): LendingCapability {
+  return {
+    capabilityId: "",
+    currentSupplyApy: "",
+    currentBorrowApy: "",
+    underlyingToken: undefined,
+    maxLtv: "",
+    liquidationThreshold: "",
+  };
+}
+
+export const LendingCapability = {
+  encode(message: LendingCapability, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.capabilityId !== "") {
+      writer.uint32(10).string(message.capabilityId);
+    }
+    if (message.currentSupplyApy !== "") {
+      writer.uint32(18).string(message.currentSupplyApy);
+    }
+    if (message.currentBorrowApy !== "") {
+      writer.uint32(26).string(message.currentBorrowApy);
+    }
+    if (message.underlyingToken !== undefined) {
+      Token.encode(message.underlyingToken, writer.uint32(34).fork()).ldelim();
+    }
+    if (message.maxLtv !== "") {
+      writer.uint32(42).string(message.maxLtv);
+    }
+    if (message.liquidationThreshold !== "") {
+      writer.uint32(50).string(message.liquidationThreshold);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): LendingCapability {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseLendingCapability();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.capabilityId = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.currentSupplyApy = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.currentBorrowApy = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.underlyingToken = Token.decode(reader, reader.uint32());
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.maxLtv = reader.string();
+          continue;
+        case 6:
+          if (tag !== 50) {
+            break;
+          }
+
+          message.liquidationThreshold = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): LendingCapability {
+    return {
+      capabilityId: isSet(object.capabilityId) ? globalThis.String(object.capabilityId) : "",
+      currentSupplyApy: isSet(object.currentSupplyApy) ? globalThis.String(object.currentSupplyApy) : "",
+      currentBorrowApy: isSet(object.currentBorrowApy) ? globalThis.String(object.currentBorrowApy) : "",
+      underlyingToken: isSet(object.underlyingToken) ? Token.fromJSON(object.underlyingToken) : undefined,
+      maxLtv: isSet(object.maxLtv) ? globalThis.String(object.maxLtv) : "",
+      liquidationThreshold: isSet(object.liquidationThreshold) ? globalThis.String(object.liquidationThreshold) : "",
+    };
+  },
+
+  toJSON(message: LendingCapability): unknown {
+    const obj: any = {};
+    if (message.capabilityId !== "") {
+      obj.capabilityId = message.capabilityId;
+    }
+    if (message.currentSupplyApy !== "") {
+      obj.currentSupplyApy = message.currentSupplyApy;
+    }
+    if (message.currentBorrowApy !== "") {
+      obj.currentBorrowApy = message.currentBorrowApy;
+    }
+    if (message.underlyingToken !== undefined) {
+      obj.underlyingToken = Token.toJSON(message.underlyingToken);
+    }
+    if (message.maxLtv !== "") {
+      obj.maxLtv = message.maxLtv;
+    }
+    if (message.liquidationThreshold !== "") {
+      obj.liquidationThreshold = message.liquidationThreshold;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<LendingCapability>, I>>(base?: I): LendingCapability {
+    return LendingCapability.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<LendingCapability>, I>>(object: I): LendingCapability {
+    const message = createBaseLendingCapability();
+    message.capabilityId = object.capabilityId ?? "";
+    message.currentSupplyApy = object.currentSupplyApy ?? "";
+    message.currentBorrowApy = object.currentBorrowApy ?? "";
+    message.underlyingToken = (object.underlyingToken !== undefined && object.underlyingToken !== null)
+      ? Token.fromPartial(object.underlyingToken)
+      : undefined;
+    message.maxLtv = object.maxLtv ?? "";
+    message.liquidationThreshold = object.liquidationThreshold ?? "";
+    return message;
+  },
+};
+
+function createBaseCapability(): Capability {
+  return { swapCapability: undefined, lendingCapability: undefined };
+}
+
+export const Capability = {
+  encode(message: Capability, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.swapCapability !== undefined) {
+      SwapCapability.encode(message.swapCapability, writer.uint32(10).fork()).ldelim();
+    }
+    if (message.lendingCapability !== undefined) {
+      LendingCapability.encode(message.lendingCapability, writer.uint32(18).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): Capability {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCapability();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.swapCapability = SwapCapability.decode(reader, reader.uint32());
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.lendingCapability = LendingCapability.decode(reader, reader.uint32());
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): Capability {
+    return {
+      swapCapability: isSet(object.swapCapability) ? SwapCapability.fromJSON(object.swapCapability) : undefined,
+      lendingCapability: isSet(object.lendingCapability)
+        ? LendingCapability.fromJSON(object.lendingCapability)
+        : undefined,
+    };
+  },
+
+  toJSON(message: Capability): unknown {
+    const obj: any = {};
+    if (message.swapCapability !== undefined) {
+      obj.swapCapability = SwapCapability.toJSON(message.swapCapability);
+    }
+    if (message.lendingCapability !== undefined) {
+      obj.lendingCapability = LendingCapability.toJSON(message.lendingCapability);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<Capability>, I>>(base?: I): Capability {
+    return Capability.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<Capability>, I>>(object: I): Capability {
+    const message = createBaseCapability();
+    message.swapCapability = (object.swapCapability !== undefined && object.swapCapability !== null)
+      ? SwapCapability.fromPartial(object.swapCapability)
+      : undefined;
+    message.lendingCapability = (object.lendingCapability !== undefined && object.lendingCapability !== null)
+      ? LendingCapability.fromPartial(object.lendingCapability)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseGetCapabilitiesRequest(): GetCapabilitiesRequest {
+  return { type: 0 };
+}
+
+export const GetCapabilitiesRequest = {
+  encode(message: GetCapabilitiesRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.type !== 0) {
+      writer.uint32(8).int32(message.type);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): GetCapabilitiesRequest {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetCapabilitiesRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 8) {
+            break;
+          }
+
+          message.type = reader.int32() as any;
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetCapabilitiesRequest {
+    return { type: isSet(object.type) ? capabilityTypeFromJSON(object.type) : 0 };
+  },
+
+  toJSON(message: GetCapabilitiesRequest): unknown {
+    const obj: any = {};
+    if (message.type !== 0) {
+      obj.type = capabilityTypeToJSON(message.type);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<GetCapabilitiesRequest>, I>>(base?: I): GetCapabilitiesRequest {
+    return GetCapabilitiesRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GetCapabilitiesRequest>, I>>(object: I): GetCapabilitiesRequest {
+    const message = createBaseGetCapabilitiesRequest();
+    message.type = object.type ?? 0;
+    return message;
+  },
+};
+
+function createBaseGetCapabilitiesResponse(): GetCapabilitiesResponse {
+  return { capabilities: [] };
+}
+
+export const GetCapabilitiesResponse = {
+  encode(message: GetCapabilitiesResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    for (const v of message.capabilities) {
+      Capability.encode(v!, writer.uint32(10).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): GetCapabilitiesResponse {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetCapabilitiesResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.capabilities.push(Capability.decode(reader, reader.uint32()));
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetCapabilitiesResponse {
+    return {
+      capabilities: globalThis.Array.isArray(object?.capabilities)
+        ? object.capabilities.map((e: any) => Capability.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: GetCapabilitiesResponse): unknown {
+    const obj: any = {};
+    if (message.capabilities?.length) {
+      obj.capabilities = message.capabilities.map((e) => Capability.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<GetCapabilitiesResponse>, I>>(base?: I): GetCapabilitiesResponse {
+    return GetCapabilitiesResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GetCapabilitiesResponse>, I>>(object: I): GetCapabilitiesResponse {
+    const message = createBaseGetCapabilitiesResponse();
+    message.capabilities = object.capabilities?.map((e) => Capability.fromPartial(e)) || [];
+    return message;
+  },
+};
 
 function createBaseChain(): Chain {
   return {
@@ -610,14 +1251,13 @@ export const Chain = {
 
 function createBaseToken(): Token {
   return {
-    tokenId: "",
+    tokenUid: undefined,
     name: "",
     symbol: "",
     isNative: false,
     decimals: 0,
-    chainId: "",
-    iconUri: "",
-    usdPrice: "",
+    iconUri: undefined,
+    usdPrice: undefined,
     isVetted: false,
     updatedAt: undefined,
   };
@@ -625,8 +1265,8 @@ function createBaseToken(): Token {
 
 export const Token = {
   encode(message: Token, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.tokenId !== "") {
-      writer.uint32(10).string(message.tokenId);
+    if (message.tokenUid !== undefined) {
+      TokenIdentifier.encode(message.tokenUid, writer.uint32(10).fork()).ldelim();
     }
     if (message.name !== "") {
       writer.uint32(18).string(message.name);
@@ -640,20 +1280,17 @@ export const Token = {
     if (message.decimals !== 0) {
       writer.uint32(40).int32(message.decimals);
     }
-    if (message.chainId !== "") {
-      writer.uint32(50).string(message.chainId);
+    if (message.iconUri !== undefined) {
+      writer.uint32(50).string(message.iconUri);
     }
-    if (message.iconUri !== "") {
-      writer.uint32(58).string(message.iconUri);
-    }
-    if (message.usdPrice !== "") {
-      writer.uint32(66).string(message.usdPrice);
+    if (message.usdPrice !== undefined) {
+      writer.uint32(58).string(message.usdPrice);
     }
     if (message.isVetted !== false) {
-      writer.uint32(72).bool(message.isVetted);
+      writer.uint32(64).bool(message.isVetted);
     }
     if (message.updatedAt !== undefined) {
-      Timestamp.encode(toTimestamp(message.updatedAt), writer.uint32(82).fork()).ldelim();
+      Timestamp.encode(toTimestamp(message.updatedAt), writer.uint32(74).fork()).ldelim();
     }
     return writer;
   },
@@ -670,7 +1307,7 @@ export const Token = {
             break;
           }
 
-          message.tokenId = reader.string();
+          message.tokenUid = TokenIdentifier.decode(reader, reader.uint32());
           continue;
         case 2:
           if (tag !== 18) {
@@ -705,31 +1342,24 @@ export const Token = {
             break;
           }
 
-          message.chainId = reader.string();
+          message.iconUri = reader.string();
           continue;
         case 7:
           if (tag !== 58) {
             break;
           }
 
-          message.iconUri = reader.string();
-          continue;
-        case 8:
-          if (tag !== 66) {
-            break;
-          }
-
           message.usdPrice = reader.string();
           continue;
-        case 9:
-          if (tag !== 72) {
+        case 8:
+          if (tag !== 64) {
             break;
           }
 
           message.isVetted = reader.bool();
           continue;
-        case 10:
-          if (tag !== 82) {
+        case 9:
+          if (tag !== 74) {
             break;
           }
 
@@ -746,14 +1376,13 @@ export const Token = {
 
   fromJSON(object: any): Token {
     return {
-      tokenId: isSet(object.tokenId) ? globalThis.String(object.tokenId) : "",
+      tokenUid: isSet(object.tokenUid) ? TokenIdentifier.fromJSON(object.tokenUid) : undefined,
       name: isSet(object.name) ? globalThis.String(object.name) : "",
       symbol: isSet(object.symbol) ? globalThis.String(object.symbol) : "",
       isNative: isSet(object.isNative) ? globalThis.Boolean(object.isNative) : false,
       decimals: isSet(object.decimals) ? globalThis.Number(object.decimals) : 0,
-      chainId: isSet(object.chainId) ? globalThis.String(object.chainId) : "",
-      iconUri: isSet(object.iconUri) ? globalThis.String(object.iconUri) : "",
-      usdPrice: isSet(object.usdPrice) ? globalThis.String(object.usdPrice) : "",
+      iconUri: isSet(object.iconUri) ? globalThis.String(object.iconUri) : undefined,
+      usdPrice: isSet(object.usdPrice) ? globalThis.String(object.usdPrice) : undefined,
       isVetted: isSet(object.isVetted) ? globalThis.Boolean(object.isVetted) : false,
       updatedAt: isSet(object.updatedAt) ? fromJsonTimestamp(object.updatedAt) : undefined,
     };
@@ -761,8 +1390,8 @@ export const Token = {
 
   toJSON(message: Token): unknown {
     const obj: any = {};
-    if (message.tokenId !== "") {
-      obj.tokenId = message.tokenId;
+    if (message.tokenUid !== undefined) {
+      obj.tokenUid = TokenIdentifier.toJSON(message.tokenUid);
     }
     if (message.name !== "") {
       obj.name = message.name;
@@ -776,13 +1405,10 @@ export const Token = {
     if (message.decimals !== 0) {
       obj.decimals = Math.round(message.decimals);
     }
-    if (message.chainId !== "") {
-      obj.chainId = message.chainId;
-    }
-    if (message.iconUri !== "") {
+    if (message.iconUri !== undefined) {
       obj.iconUri = message.iconUri;
     }
-    if (message.usdPrice !== "") {
+    if (message.usdPrice !== undefined) {
       obj.usdPrice = message.usdPrice;
     }
     if (message.isVetted !== false) {
@@ -799,14 +1425,15 @@ export const Token = {
   },
   fromPartial<I extends Exact<DeepPartial<Token>, I>>(object: I): Token {
     const message = createBaseToken();
-    message.tokenId = object.tokenId ?? "";
+    message.tokenUid = (object.tokenUid !== undefined && object.tokenUid !== null)
+      ? TokenIdentifier.fromPartial(object.tokenUid)
+      : undefined;
     message.name = object.name ?? "";
     message.symbol = object.symbol ?? "";
     message.isNative = object.isNative ?? false;
     message.decimals = object.decimals ?? 0;
-    message.chainId = object.chainId ?? "";
-    message.iconUri = object.iconUri ?? "";
-    message.usdPrice = object.usdPrice ?? "";
+    message.iconUri = object.iconUri ?? undefined;
+    message.usdPrice = object.usdPrice ?? undefined;
     message.isVetted = object.isVetted ?? false;
     message.updatedAt = object.updatedAt ?? undefined;
     return message;
@@ -814,19 +1441,13 @@ export const Token = {
 };
 
 function createBaseGetChainsRequest(): GetChainsRequest {
-  return { filter: "", pageSize: 0, pageToken: "" };
+  return { filter: "" };
 }
 
 export const GetChainsRequest = {
   encode(message: GetChainsRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.filter !== "") {
       writer.uint32(10).string(message.filter);
-    }
-    if (message.pageSize !== 0) {
-      writer.uint32(16).int32(message.pageSize);
-    }
-    if (message.pageToken !== "") {
-      writer.uint32(26).string(message.pageToken);
     }
     return writer;
   },
@@ -845,20 +1466,6 @@ export const GetChainsRequest = {
 
           message.filter = reader.string();
           continue;
-        case 2:
-          if (tag !== 16) {
-            break;
-          }
-
-          message.pageSize = reader.int32();
-          continue;
-        case 3:
-          if (tag !== 26) {
-            break;
-          }
-
-          message.pageToken = reader.string();
-          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -869,23 +1476,13 @@ export const GetChainsRequest = {
   },
 
   fromJSON(object: any): GetChainsRequest {
-    return {
-      filter: isSet(object.filter) ? globalThis.String(object.filter) : "",
-      pageSize: isSet(object.pageSize) ? globalThis.Number(object.pageSize) : 0,
-      pageToken: isSet(object.pageToken) ? globalThis.String(object.pageToken) : "",
-    };
+    return { filter: isSet(object.filter) ? globalThis.String(object.filter) : "" };
   },
 
   toJSON(message: GetChainsRequest): unknown {
     const obj: any = {};
     if (message.filter !== "") {
       obj.filter = message.filter;
-    }
-    if (message.pageSize !== 0) {
-      obj.pageSize = Math.round(message.pageSize);
-    }
-    if (message.pageToken !== "") {
-      obj.pageToken = message.pageToken;
     }
     return obj;
   },
@@ -896,23 +1493,18 @@ export const GetChainsRequest = {
   fromPartial<I extends Exact<DeepPartial<GetChainsRequest>, I>>(object: I): GetChainsRequest {
     const message = createBaseGetChainsRequest();
     message.filter = object.filter ?? "";
-    message.pageSize = object.pageSize ?? 0;
-    message.pageToken = object.pageToken ?? "";
     return message;
   },
 };
 
 function createBaseGetChainsResponse(): GetChainsResponse {
-  return { chains: [], nextPageToken: "" };
+  return { chains: [] };
 }
 
 export const GetChainsResponse = {
   encode(message: GetChainsResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     for (const v of message.chains) {
       Chain.encode(v!, writer.uint32(10).fork()).ldelim();
-    }
-    if (message.nextPageToken !== "") {
-      writer.uint32(18).string(message.nextPageToken);
     }
     return writer;
   },
@@ -931,13 +1523,6 @@ export const GetChainsResponse = {
 
           message.chains.push(Chain.decode(reader, reader.uint32()));
           continue;
-        case 2:
-          if (tag !== 18) {
-            break;
-          }
-
-          message.nextPageToken = reader.string();
-          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -948,19 +1533,13 @@ export const GetChainsResponse = {
   },
 
   fromJSON(object: any): GetChainsResponse {
-    return {
-      chains: globalThis.Array.isArray(object?.chains) ? object.chains.map((e: any) => Chain.fromJSON(e)) : [],
-      nextPageToken: isSet(object.nextPageToken) ? globalThis.String(object.nextPageToken) : "",
-    };
+    return { chains: globalThis.Array.isArray(object?.chains) ? object.chains.map((e: any) => Chain.fromJSON(e)) : [] };
   },
 
   toJSON(message: GetChainsResponse): unknown {
     const obj: any = {};
     if (message.chains?.length) {
       obj.chains = message.chains.map((e) => Chain.toJSON(e));
-    }
-    if (message.nextPageToken !== "") {
-      obj.nextPageToken = message.nextPageToken;
     }
     return obj;
   },
@@ -971,13 +1550,12 @@ export const GetChainsResponse = {
   fromPartial<I extends Exact<DeepPartial<GetChainsResponse>, I>>(object: I): GetChainsResponse {
     const message = createBaseGetChainsResponse();
     message.chains = object.chains?.map((e) => Chain.fromPartial(e)) || [];
-    message.nextPageToken = object.nextPageToken ?? "";
     return message;
   },
 };
 
 function createBaseGetTokensRequest(): GetTokensRequest {
-  return { chainId: "", filter: "", pageSize: 0, pageToken: "" };
+  return { chainId: "", filter: "" };
 }
 
 export const GetTokensRequest = {
@@ -987,12 +1565,6 @@ export const GetTokensRequest = {
     }
     if (message.filter !== "") {
       writer.uint32(18).string(message.filter);
-    }
-    if (message.pageSize !== 0) {
-      writer.uint32(24).int32(message.pageSize);
-    }
-    if (message.pageToken !== "") {
-      writer.uint32(34).string(message.pageToken);
     }
     return writer;
   },
@@ -1018,20 +1590,6 @@ export const GetTokensRequest = {
 
           message.filter = reader.string();
           continue;
-        case 3:
-          if (tag !== 24) {
-            break;
-          }
-
-          message.pageSize = reader.int32();
-          continue;
-        case 4:
-          if (tag !== 34) {
-            break;
-          }
-
-          message.pageToken = reader.string();
-          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1045,8 +1603,6 @@ export const GetTokensRequest = {
     return {
       chainId: isSet(object.chainId) ? globalThis.String(object.chainId) : "",
       filter: isSet(object.filter) ? globalThis.String(object.filter) : "",
-      pageSize: isSet(object.pageSize) ? globalThis.Number(object.pageSize) : 0,
-      pageToken: isSet(object.pageToken) ? globalThis.String(object.pageToken) : "",
     };
   },
 
@@ -1058,12 +1614,6 @@ export const GetTokensRequest = {
     if (message.filter !== "") {
       obj.filter = message.filter;
     }
-    if (message.pageSize !== 0) {
-      obj.pageSize = Math.round(message.pageSize);
-    }
-    if (message.pageToken !== "") {
-      obj.pageToken = message.pageToken;
-    }
     return obj;
   },
 
@@ -1074,23 +1624,18 @@ export const GetTokensRequest = {
     const message = createBaseGetTokensRequest();
     message.chainId = object.chainId ?? "";
     message.filter = object.filter ?? "";
-    message.pageSize = object.pageSize ?? 0;
-    message.pageToken = object.pageToken ?? "";
     return message;
   },
 };
 
 function createBaseGetTokensResponse(): GetTokensResponse {
-  return { tokens: [], nextPageToken: "" };
+  return { tokens: [] };
 }
 
 export const GetTokensResponse = {
   encode(message: GetTokensResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     for (const v of message.tokens) {
       Token.encode(v!, writer.uint32(10).fork()).ldelim();
-    }
-    if (message.nextPageToken !== "") {
-      writer.uint32(18).string(message.nextPageToken);
     }
     return writer;
   },
@@ -1109,13 +1654,6 @@ export const GetTokensResponse = {
 
           message.tokens.push(Token.decode(reader, reader.uint32()));
           continue;
-        case 2:
-          if (tag !== 18) {
-            break;
-          }
-
-          message.nextPageToken = reader.string();
-          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1126,19 +1664,13 @@ export const GetTokensResponse = {
   },
 
   fromJSON(object: any): GetTokensResponse {
-    return {
-      tokens: globalThis.Array.isArray(object?.tokens) ? object.tokens.map((e: any) => Token.fromJSON(e)) : [],
-      nextPageToken: isSet(object.nextPageToken) ? globalThis.String(object.nextPageToken) : "",
-    };
+    return { tokens: globalThis.Array.isArray(object?.tokens) ? object.tokens.map((e: any) => Token.fromJSON(e)) : [] };
   },
 
   toJSON(message: GetTokensResponse): unknown {
     const obj: any = {};
     if (message.tokens?.length) {
       obj.tokens = message.tokens.map((e) => Token.toJSON(e));
-    }
-    if (message.nextPageToken !== "") {
-      obj.nextPageToken = message.nextPageToken;
     }
     return obj;
   },
@@ -1149,7 +1681,6 @@ export const GetTokensResponse = {
   fromPartial<I extends Exact<DeepPartial<GetTokensResponse>, I>>(object: I): GetTokensResponse {
     const message = createBaseGetTokensResponse();
     message.tokens = object.tokens?.map((e) => Token.fromPartial(e)) || [];
-    message.nextPageToken = object.nextPageToken ?? "";
     return message;
   },
 };
@@ -1797,25 +2328,22 @@ export const SwapTokensResponse = {
 };
 
 function createBaseFeeBreakdown(): FeeBreakdown {
-  return { gasFee: "", serviceFee: "", slippageCost: "", total: "", feeDenomination: "" };
+  return { serviceFee: "", slippageCost: "", total: "", feeDenomination: "" };
 }
 
 export const FeeBreakdown = {
   encode(message: FeeBreakdown, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.gasFee !== "") {
-      writer.uint32(10).string(message.gasFee);
-    }
     if (message.serviceFee !== "") {
-      writer.uint32(18).string(message.serviceFee);
+      writer.uint32(10).string(message.serviceFee);
     }
     if (message.slippageCost !== "") {
-      writer.uint32(26).string(message.slippageCost);
+      writer.uint32(18).string(message.slippageCost);
     }
     if (message.total !== "") {
-      writer.uint32(34).string(message.total);
+      writer.uint32(26).string(message.total);
     }
     if (message.feeDenomination !== "") {
-      writer.uint32(42).string(message.feeDenomination);
+      writer.uint32(34).string(message.feeDenomination);
     }
     return writer;
   },
@@ -1832,31 +2360,24 @@ export const FeeBreakdown = {
             break;
           }
 
-          message.gasFee = reader.string();
+          message.serviceFee = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
             break;
           }
 
-          message.serviceFee = reader.string();
+          message.slippageCost = reader.string();
           continue;
         case 3:
           if (tag !== 26) {
             break;
           }
 
-          message.slippageCost = reader.string();
+          message.total = reader.string();
           continue;
         case 4:
           if (tag !== 34) {
-            break;
-          }
-
-          message.total = reader.string();
-          continue;
-        case 5:
-          if (tag !== 42) {
             break;
           }
 
@@ -1873,7 +2394,6 @@ export const FeeBreakdown = {
 
   fromJSON(object: any): FeeBreakdown {
     return {
-      gasFee: isSet(object.gasFee) ? globalThis.String(object.gasFee) : "",
       serviceFee: isSet(object.serviceFee) ? globalThis.String(object.serviceFee) : "",
       slippageCost: isSet(object.slippageCost) ? globalThis.String(object.slippageCost) : "",
       total: isSet(object.total) ? globalThis.String(object.total) : "",
@@ -1883,9 +2403,6 @@ export const FeeBreakdown = {
 
   toJSON(message: FeeBreakdown): unknown {
     const obj: any = {};
-    if (message.gasFee !== "") {
-      obj.gasFee = message.gasFee;
-    }
     if (message.serviceFee !== "") {
       obj.serviceFee = message.serviceFee;
     }
@@ -1906,7 +2423,6 @@ export const FeeBreakdown = {
   },
   fromPartial<I extends Exact<DeepPartial<FeeBreakdown>, I>>(object: I): FeeBreakdown {
     const message = createBaseFeeBreakdown();
-    message.gasFee = object.gasFee ?? "";
     message.serviceFee = object.serviceFee ?? "";
     message.slippageCost = object.slippageCost ?? "";
     message.total = object.total ?? "";
@@ -2489,6 +3005,2036 @@ export const GetProviderTrackingStatusResponse = {
   },
 };
 
+function createBaseBorrowTokensRequest(): BorrowTokensRequest {
+  return { tokenUid: undefined, amount: "", borrowerWalletAddress: "" };
+}
+
+export const BorrowTokensRequest = {
+  encode(message: BorrowTokensRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.tokenUid !== undefined) {
+      TokenIdentifier.encode(message.tokenUid, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.amount !== "") {
+      writer.uint32(26).string(message.amount);
+    }
+    if (message.borrowerWalletAddress !== "") {
+      writer.uint32(34).string(message.borrowerWalletAddress);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): BorrowTokensRequest {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseBorrowTokensRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.tokenUid = TokenIdentifier.decode(reader, reader.uint32());
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.amount = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.borrowerWalletAddress = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): BorrowTokensRequest {
+    return {
+      tokenUid: isSet(object.tokenUid) ? TokenIdentifier.fromJSON(object.tokenUid) : undefined,
+      amount: isSet(object.amount) ? globalThis.String(object.amount) : "",
+      borrowerWalletAddress: isSet(object.borrowerWalletAddress) ? globalThis.String(object.borrowerWalletAddress) : "",
+    };
+  },
+
+  toJSON(message: BorrowTokensRequest): unknown {
+    const obj: any = {};
+    if (message.tokenUid !== undefined) {
+      obj.tokenUid = TokenIdentifier.toJSON(message.tokenUid);
+    }
+    if (message.amount !== "") {
+      obj.amount = message.amount;
+    }
+    if (message.borrowerWalletAddress !== "") {
+      obj.borrowerWalletAddress = message.borrowerWalletAddress;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<BorrowTokensRequest>, I>>(base?: I): BorrowTokensRequest {
+    return BorrowTokensRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<BorrowTokensRequest>, I>>(object: I): BorrowTokensRequest {
+    const message = createBaseBorrowTokensRequest();
+    message.tokenUid = (object.tokenUid !== undefined && object.tokenUid !== null)
+      ? TokenIdentifier.fromPartial(object.tokenUid)
+      : undefined;
+    message.amount = object.amount ?? "";
+    message.borrowerWalletAddress = object.borrowerWalletAddress ?? "";
+    return message;
+  },
+};
+
+function createBaseBorrowTokensResponse(): BorrowTokensResponse {
+  return {
+    currentBorrowApy: "",
+    liquidationThreshold: "",
+    feeBreakdown: undefined,
+    transactions: [],
+    error: undefined,
+  };
+}
+
+export const BorrowTokensResponse = {
+  encode(message: BorrowTokensResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.currentBorrowApy !== "") {
+      writer.uint32(10).string(message.currentBorrowApy);
+    }
+    if (message.liquidationThreshold !== "") {
+      writer.uint32(18).string(message.liquidationThreshold);
+    }
+    if (message.feeBreakdown !== undefined) {
+      FeeBreakdown.encode(message.feeBreakdown, writer.uint32(26).fork()).ldelim();
+    }
+    for (const v of message.transactions) {
+      TransactionPlan.encode(v!, writer.uint32(34).fork()).ldelim();
+    }
+    if (message.error !== undefined) {
+      TransactionPlanError.encode(message.error, writer.uint32(42).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): BorrowTokensResponse {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseBorrowTokensResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.currentBorrowApy = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.liquidationThreshold = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.feeBreakdown = FeeBreakdown.decode(reader, reader.uint32());
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.transactions.push(TransactionPlan.decode(reader, reader.uint32()));
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.error = TransactionPlanError.decode(reader, reader.uint32());
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): BorrowTokensResponse {
+    return {
+      currentBorrowApy: isSet(object.currentBorrowApy) ? globalThis.String(object.currentBorrowApy) : "",
+      liquidationThreshold: isSet(object.liquidationThreshold) ? globalThis.String(object.liquidationThreshold) : "",
+      feeBreakdown: isSet(object.feeBreakdown) ? FeeBreakdown.fromJSON(object.feeBreakdown) : undefined,
+      transactions: globalThis.Array.isArray(object?.transactions)
+        ? object.transactions.map((e: any) => TransactionPlan.fromJSON(e))
+        : [],
+      error: isSet(object.error) ? TransactionPlanError.fromJSON(object.error) : undefined,
+    };
+  },
+
+  toJSON(message: BorrowTokensResponse): unknown {
+    const obj: any = {};
+    if (message.currentBorrowApy !== "") {
+      obj.currentBorrowApy = message.currentBorrowApy;
+    }
+    if (message.liquidationThreshold !== "") {
+      obj.liquidationThreshold = message.liquidationThreshold;
+    }
+    if (message.feeBreakdown !== undefined) {
+      obj.feeBreakdown = FeeBreakdown.toJSON(message.feeBreakdown);
+    }
+    if (message.transactions?.length) {
+      obj.transactions = message.transactions.map((e) => TransactionPlan.toJSON(e));
+    }
+    if (message.error !== undefined) {
+      obj.error = TransactionPlanError.toJSON(message.error);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<BorrowTokensResponse>, I>>(base?: I): BorrowTokensResponse {
+    return BorrowTokensResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<BorrowTokensResponse>, I>>(object: I): BorrowTokensResponse {
+    const message = createBaseBorrowTokensResponse();
+    message.currentBorrowApy = object.currentBorrowApy ?? "";
+    message.liquidationThreshold = object.liquidationThreshold ?? "";
+    message.feeBreakdown = (object.feeBreakdown !== undefined && object.feeBreakdown !== null)
+      ? FeeBreakdown.fromPartial(object.feeBreakdown)
+      : undefined;
+    message.transactions = object.transactions?.map((e) => TransactionPlan.fromPartial(e)) || [];
+    message.error = (object.error !== undefined && object.error !== null)
+      ? TransactionPlanError.fromPartial(object.error)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseGetWalletPositionsRequest(): GetWalletPositionsRequest {
+  return { walletAddress: "" };
+}
+
+export const GetWalletPositionsRequest = {
+  encode(message: GetWalletPositionsRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.walletAddress !== "") {
+      writer.uint32(10).string(message.walletAddress);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): GetWalletPositionsRequest {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetWalletPositionsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.walletAddress = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetWalletPositionsRequest {
+    return { walletAddress: isSet(object.walletAddress) ? globalThis.String(object.walletAddress) : "" };
+  },
+
+  toJSON(message: GetWalletPositionsRequest): unknown {
+    const obj: any = {};
+    if (message.walletAddress !== "") {
+      obj.walletAddress = message.walletAddress;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<GetWalletPositionsRequest>, I>>(base?: I): GetWalletPositionsRequest {
+    return GetWalletPositionsRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GetWalletPositionsRequest>, I>>(object: I): GetWalletPositionsRequest {
+    const message = createBaseGetWalletPositionsRequest();
+    message.walletAddress = object.walletAddress ?? "";
+    return message;
+  },
+};
+
+function createBaseGetWalletPositionsResponse(): GetWalletPositionsResponse {
+  return { positions: [] };
+}
+
+export const GetWalletPositionsResponse = {
+  encode(message: GetWalletPositionsResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    for (const v of message.positions) {
+      WalletPosition.encode(v!, writer.uint32(10).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): GetWalletPositionsResponse {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetWalletPositionsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.positions.push(WalletPosition.decode(reader, reader.uint32()));
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetWalletPositionsResponse {
+    return {
+      positions: globalThis.Array.isArray(object?.positions)
+        ? object.positions.map((e: any) => WalletPosition.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: GetWalletPositionsResponse): unknown {
+    const obj: any = {};
+    if (message.positions?.length) {
+      obj.positions = message.positions.map((e) => WalletPosition.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<GetWalletPositionsResponse>, I>>(base?: I): GetWalletPositionsResponse {
+    return GetWalletPositionsResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GetWalletPositionsResponse>, I>>(object: I): GetWalletPositionsResponse {
+    const message = createBaseGetWalletPositionsResponse();
+    message.positions = object.positions?.map((e) => WalletPosition.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseWalletPosition(): WalletPosition {
+  return { lendingPosition: undefined };
+}
+
+export const WalletPosition = {
+  encode(message: WalletPosition, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.lendingPosition !== undefined) {
+      LendingPosition.encode(message.lendingPosition, writer.uint32(10).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): WalletPosition {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseWalletPosition();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.lendingPosition = LendingPosition.decode(reader, reader.uint32());
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): WalletPosition {
+    return {
+      lendingPosition: isSet(object.lendingPosition) ? LendingPosition.fromJSON(object.lendingPosition) : undefined,
+    };
+  },
+
+  toJSON(message: WalletPosition): unknown {
+    const obj: any = {};
+    if (message.lendingPosition !== undefined) {
+      obj.lendingPosition = LendingPosition.toJSON(message.lendingPosition);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<WalletPosition>, I>>(base?: I): WalletPosition {
+    return WalletPosition.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<WalletPosition>, I>>(object: I): WalletPosition {
+    const message = createBaseWalletPosition();
+    message.lendingPosition = (object.lendingPosition !== undefined && object.lendingPosition !== null)
+      ? LendingPosition.fromPartial(object.lendingPosition)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseBorrowPosition(): BorrowPosition {
+  return {
+    borrowerWalletAddress: "",
+    totalLiquidityUsd: "",
+    totalCollateralUsd: "",
+    totalBorrowsUsd: "",
+    netWorthUsd: "",
+    healthFactor: "",
+    positions: [],
+  };
+}
+
+export const BorrowPosition = {
+  encode(message: BorrowPosition, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.borrowerWalletAddress !== "") {
+      writer.uint32(10).string(message.borrowerWalletAddress);
+    }
+    if (message.totalLiquidityUsd !== "") {
+      writer.uint32(18).string(message.totalLiquidityUsd);
+    }
+    if (message.totalCollateralUsd !== "") {
+      writer.uint32(26).string(message.totalCollateralUsd);
+    }
+    if (message.totalBorrowsUsd !== "") {
+      writer.uint32(34).string(message.totalBorrowsUsd);
+    }
+    if (message.netWorthUsd !== "") {
+      writer.uint32(42).string(message.netWorthUsd);
+    }
+    if (message.healthFactor !== "") {
+      writer.uint32(50).string(message.healthFactor);
+    }
+    for (const v of message.positions) {
+      TokenPosition.encode(v!, writer.uint32(58).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): BorrowPosition {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseBorrowPosition();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.borrowerWalletAddress = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.totalLiquidityUsd = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.totalCollateralUsd = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.totalBorrowsUsd = reader.string();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.netWorthUsd = reader.string();
+          continue;
+        case 6:
+          if (tag !== 50) {
+            break;
+          }
+
+          message.healthFactor = reader.string();
+          continue;
+        case 7:
+          if (tag !== 58) {
+            break;
+          }
+
+          message.positions.push(TokenPosition.decode(reader, reader.uint32()));
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): BorrowPosition {
+    return {
+      borrowerWalletAddress: isSet(object.borrowerWalletAddress) ? globalThis.String(object.borrowerWalletAddress) : "",
+      totalLiquidityUsd: isSet(object.totalLiquidityUsd) ? globalThis.String(object.totalLiquidityUsd) : "",
+      totalCollateralUsd: isSet(object.totalCollateralUsd) ? globalThis.String(object.totalCollateralUsd) : "",
+      totalBorrowsUsd: isSet(object.totalBorrowsUsd) ? globalThis.String(object.totalBorrowsUsd) : "",
+      netWorthUsd: isSet(object.netWorthUsd) ? globalThis.String(object.netWorthUsd) : "",
+      healthFactor: isSet(object.healthFactor) ? globalThis.String(object.healthFactor) : "",
+      positions: globalThis.Array.isArray(object?.positions)
+        ? object.positions.map((e: any) => TokenPosition.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: BorrowPosition): unknown {
+    const obj: any = {};
+    if (message.borrowerWalletAddress !== "") {
+      obj.borrowerWalletAddress = message.borrowerWalletAddress;
+    }
+    if (message.totalLiquidityUsd !== "") {
+      obj.totalLiquidityUsd = message.totalLiquidityUsd;
+    }
+    if (message.totalCollateralUsd !== "") {
+      obj.totalCollateralUsd = message.totalCollateralUsd;
+    }
+    if (message.totalBorrowsUsd !== "") {
+      obj.totalBorrowsUsd = message.totalBorrowsUsd;
+    }
+    if (message.netWorthUsd !== "") {
+      obj.netWorthUsd = message.netWorthUsd;
+    }
+    if (message.healthFactor !== "") {
+      obj.healthFactor = message.healthFactor;
+    }
+    if (message.positions?.length) {
+      obj.positions = message.positions.map((e) => TokenPosition.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<BorrowPosition>, I>>(base?: I): BorrowPosition {
+    return BorrowPosition.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<BorrowPosition>, I>>(object: I): BorrowPosition {
+    const message = createBaseBorrowPosition();
+    message.borrowerWalletAddress = object.borrowerWalletAddress ?? "";
+    message.totalLiquidityUsd = object.totalLiquidityUsd ?? "";
+    message.totalCollateralUsd = object.totalCollateralUsd ?? "";
+    message.totalBorrowsUsd = object.totalBorrowsUsd ?? "";
+    message.netWorthUsd = object.netWorthUsd ?? "";
+    message.healthFactor = object.healthFactor ?? "";
+    message.positions = object.positions?.map((e) => TokenPosition.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseTokenPosition(): TokenPosition {
+  return { underlyingToken: undefined, borrowRate: "", supplyBalance: "", borrowBalance: "", valueUsd: "" };
+}
+
+export const TokenPosition = {
+  encode(message: TokenPosition, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.underlyingToken !== undefined) {
+      Token.encode(message.underlyingToken, writer.uint32(10).fork()).ldelim();
+    }
+    if (message.borrowRate !== "") {
+      writer.uint32(18).string(message.borrowRate);
+    }
+    if (message.supplyBalance !== "") {
+      writer.uint32(26).string(message.supplyBalance);
+    }
+    if (message.borrowBalance !== "") {
+      writer.uint32(34).string(message.borrowBalance);
+    }
+    if (message.valueUsd !== "") {
+      writer.uint32(42).string(message.valueUsd);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): TokenPosition {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTokenPosition();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.underlyingToken = Token.decode(reader, reader.uint32());
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.borrowRate = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.supplyBalance = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.borrowBalance = reader.string();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.valueUsd = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): TokenPosition {
+    return {
+      underlyingToken: isSet(object.underlyingToken) ? Token.fromJSON(object.underlyingToken) : undefined,
+      borrowRate: isSet(object.borrowRate) ? globalThis.String(object.borrowRate) : "",
+      supplyBalance: isSet(object.supplyBalance) ? globalThis.String(object.supplyBalance) : "",
+      borrowBalance: isSet(object.borrowBalance) ? globalThis.String(object.borrowBalance) : "",
+      valueUsd: isSet(object.valueUsd) ? globalThis.String(object.valueUsd) : "",
+    };
+  },
+
+  toJSON(message: TokenPosition): unknown {
+    const obj: any = {};
+    if (message.underlyingToken !== undefined) {
+      obj.underlyingToken = Token.toJSON(message.underlyingToken);
+    }
+    if (message.borrowRate !== "") {
+      obj.borrowRate = message.borrowRate;
+    }
+    if (message.supplyBalance !== "") {
+      obj.supplyBalance = message.supplyBalance;
+    }
+    if (message.borrowBalance !== "") {
+      obj.borrowBalance = message.borrowBalance;
+    }
+    if (message.valueUsd !== "") {
+      obj.valueUsd = message.valueUsd;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<TokenPosition>, I>>(base?: I): TokenPosition {
+    return TokenPosition.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<TokenPosition>, I>>(object: I): TokenPosition {
+    const message = createBaseTokenPosition();
+    message.underlyingToken = (object.underlyingToken !== undefined && object.underlyingToken !== null)
+      ? Token.fromPartial(object.underlyingToken)
+      : undefined;
+    message.borrowRate = object.borrowRate ?? "";
+    message.supplyBalance = object.supplyBalance ?? "";
+    message.borrowBalance = object.borrowBalance ?? "";
+    message.valueUsd = object.valueUsd ?? "";
+    return message;
+  },
+};
+
+function createBaseLendingPosition(): LendingPosition {
+  return {
+    userReserves: [],
+    totalLiquidityUsd: "",
+    totalCollateralUsd: "",
+    totalBorrowsUsd: "",
+    netWorthUsd: "",
+    availableBorrowsUsd: "",
+    currentLoanToValue: "",
+    currentLiquidationThreshold: "",
+    healthFactor: "",
+  };
+}
+
+export const LendingPosition = {
+  encode(message: LendingPosition, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    for (const v of message.userReserves) {
+      LendTokenDetail.encode(v!, writer.uint32(10).fork()).ldelim();
+    }
+    if (message.totalLiquidityUsd !== "") {
+      writer.uint32(18).string(message.totalLiquidityUsd);
+    }
+    if (message.totalCollateralUsd !== "") {
+      writer.uint32(26).string(message.totalCollateralUsd);
+    }
+    if (message.totalBorrowsUsd !== "") {
+      writer.uint32(34).string(message.totalBorrowsUsd);
+    }
+    if (message.netWorthUsd !== "") {
+      writer.uint32(42).string(message.netWorthUsd);
+    }
+    if (message.availableBorrowsUsd !== "") {
+      writer.uint32(50).string(message.availableBorrowsUsd);
+    }
+    if (message.currentLoanToValue !== "") {
+      writer.uint32(58).string(message.currentLoanToValue);
+    }
+    if (message.currentLiquidationThreshold !== "") {
+      writer.uint32(66).string(message.currentLiquidationThreshold);
+    }
+    if (message.healthFactor !== "") {
+      writer.uint32(74).string(message.healthFactor);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): LendingPosition {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseLendingPosition();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userReserves.push(LendTokenDetail.decode(reader, reader.uint32()));
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.totalLiquidityUsd = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.totalCollateralUsd = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.totalBorrowsUsd = reader.string();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.netWorthUsd = reader.string();
+          continue;
+        case 6:
+          if (tag !== 50) {
+            break;
+          }
+
+          message.availableBorrowsUsd = reader.string();
+          continue;
+        case 7:
+          if (tag !== 58) {
+            break;
+          }
+
+          message.currentLoanToValue = reader.string();
+          continue;
+        case 8:
+          if (tag !== 66) {
+            break;
+          }
+
+          message.currentLiquidationThreshold = reader.string();
+          continue;
+        case 9:
+          if (tag !== 74) {
+            break;
+          }
+
+          message.healthFactor = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): LendingPosition {
+    return {
+      userReserves: globalThis.Array.isArray(object?.userReserves)
+        ? object.userReserves.map((e: any) => LendTokenDetail.fromJSON(e))
+        : [],
+      totalLiquidityUsd: isSet(object.totalLiquidityUsd) ? globalThis.String(object.totalLiquidityUsd) : "",
+      totalCollateralUsd: isSet(object.totalCollateralUsd) ? globalThis.String(object.totalCollateralUsd) : "",
+      totalBorrowsUsd: isSet(object.totalBorrowsUsd) ? globalThis.String(object.totalBorrowsUsd) : "",
+      netWorthUsd: isSet(object.netWorthUsd) ? globalThis.String(object.netWorthUsd) : "",
+      availableBorrowsUsd: isSet(object.availableBorrowsUsd) ? globalThis.String(object.availableBorrowsUsd) : "",
+      currentLoanToValue: isSet(object.currentLoanToValue) ? globalThis.String(object.currentLoanToValue) : "",
+      currentLiquidationThreshold: isSet(object.currentLiquidationThreshold)
+        ? globalThis.String(object.currentLiquidationThreshold)
+        : "",
+      healthFactor: isSet(object.healthFactor) ? globalThis.String(object.healthFactor) : "",
+    };
+  },
+
+  toJSON(message: LendingPosition): unknown {
+    const obj: any = {};
+    if (message.userReserves?.length) {
+      obj.userReserves = message.userReserves.map((e) => LendTokenDetail.toJSON(e));
+    }
+    if (message.totalLiquidityUsd !== "") {
+      obj.totalLiquidityUsd = message.totalLiquidityUsd;
+    }
+    if (message.totalCollateralUsd !== "") {
+      obj.totalCollateralUsd = message.totalCollateralUsd;
+    }
+    if (message.totalBorrowsUsd !== "") {
+      obj.totalBorrowsUsd = message.totalBorrowsUsd;
+    }
+    if (message.netWorthUsd !== "") {
+      obj.netWorthUsd = message.netWorthUsd;
+    }
+    if (message.availableBorrowsUsd !== "") {
+      obj.availableBorrowsUsd = message.availableBorrowsUsd;
+    }
+    if (message.currentLoanToValue !== "") {
+      obj.currentLoanToValue = message.currentLoanToValue;
+    }
+    if (message.currentLiquidationThreshold !== "") {
+      obj.currentLiquidationThreshold = message.currentLiquidationThreshold;
+    }
+    if (message.healthFactor !== "") {
+      obj.healthFactor = message.healthFactor;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<LendingPosition>, I>>(base?: I): LendingPosition {
+    return LendingPosition.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<LendingPosition>, I>>(object: I): LendingPosition {
+    const message = createBaseLendingPosition();
+    message.userReserves = object.userReserves?.map((e) => LendTokenDetail.fromPartial(e)) || [];
+    message.totalLiquidityUsd = object.totalLiquidityUsd ?? "";
+    message.totalCollateralUsd = object.totalCollateralUsd ?? "";
+    message.totalBorrowsUsd = object.totalBorrowsUsd ?? "";
+    message.netWorthUsd = object.netWorthUsd ?? "";
+    message.availableBorrowsUsd = object.availableBorrowsUsd ?? "";
+    message.currentLoanToValue = object.currentLoanToValue ?? "";
+    message.currentLiquidationThreshold = object.currentLiquidationThreshold ?? "";
+    message.healthFactor = object.healthFactor ?? "";
+    return message;
+  },
+};
+
+function createBaseLendTokenDetail(): LendTokenDetail {
+  return {
+    token: undefined,
+    underlyingBalance: "",
+    underlyingBalanceUsd: "",
+    variableBorrows: "",
+    variableBorrowsUsd: "",
+    totalBorrows: "",
+    totalBorrowsUsd: "",
+  };
+}
+
+export const LendTokenDetail = {
+  encode(message: LendTokenDetail, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.token !== undefined) {
+      Token.encode(message.token, writer.uint32(10).fork()).ldelim();
+    }
+    if (message.underlyingBalance !== "") {
+      writer.uint32(18).string(message.underlyingBalance);
+    }
+    if (message.underlyingBalanceUsd !== "") {
+      writer.uint32(26).string(message.underlyingBalanceUsd);
+    }
+    if (message.variableBorrows !== "") {
+      writer.uint32(34).string(message.variableBorrows);
+    }
+    if (message.variableBorrowsUsd !== "") {
+      writer.uint32(42).string(message.variableBorrowsUsd);
+    }
+    if (message.totalBorrows !== "") {
+      writer.uint32(50).string(message.totalBorrows);
+    }
+    if (message.totalBorrowsUsd !== "") {
+      writer.uint32(58).string(message.totalBorrowsUsd);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): LendTokenDetail {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseLendTokenDetail();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.token = Token.decode(reader, reader.uint32());
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.underlyingBalance = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.underlyingBalanceUsd = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.variableBorrows = reader.string();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.variableBorrowsUsd = reader.string();
+          continue;
+        case 6:
+          if (tag !== 50) {
+            break;
+          }
+
+          message.totalBorrows = reader.string();
+          continue;
+        case 7:
+          if (tag !== 58) {
+            break;
+          }
+
+          message.totalBorrowsUsd = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): LendTokenDetail {
+    return {
+      token: isSet(object.token) ? Token.fromJSON(object.token) : undefined,
+      underlyingBalance: isSet(object.underlyingBalance) ? globalThis.String(object.underlyingBalance) : "",
+      underlyingBalanceUsd: isSet(object.underlyingBalanceUsd) ? globalThis.String(object.underlyingBalanceUsd) : "",
+      variableBorrows: isSet(object.variableBorrows) ? globalThis.String(object.variableBorrows) : "",
+      variableBorrowsUsd: isSet(object.variableBorrowsUsd) ? globalThis.String(object.variableBorrowsUsd) : "",
+      totalBorrows: isSet(object.totalBorrows) ? globalThis.String(object.totalBorrows) : "",
+      totalBorrowsUsd: isSet(object.totalBorrowsUsd) ? globalThis.String(object.totalBorrowsUsd) : "",
+    };
+  },
+
+  toJSON(message: LendTokenDetail): unknown {
+    const obj: any = {};
+    if (message.token !== undefined) {
+      obj.token = Token.toJSON(message.token);
+    }
+    if (message.underlyingBalance !== "") {
+      obj.underlyingBalance = message.underlyingBalance;
+    }
+    if (message.underlyingBalanceUsd !== "") {
+      obj.underlyingBalanceUsd = message.underlyingBalanceUsd;
+    }
+    if (message.variableBorrows !== "") {
+      obj.variableBorrows = message.variableBorrows;
+    }
+    if (message.variableBorrowsUsd !== "") {
+      obj.variableBorrowsUsd = message.variableBorrowsUsd;
+    }
+    if (message.totalBorrows !== "") {
+      obj.totalBorrows = message.totalBorrows;
+    }
+    if (message.totalBorrowsUsd !== "") {
+      obj.totalBorrowsUsd = message.totalBorrowsUsd;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<LendTokenDetail>, I>>(base?: I): LendTokenDetail {
+    return LendTokenDetail.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<LendTokenDetail>, I>>(object: I): LendTokenDetail {
+    const message = createBaseLendTokenDetail();
+    message.token = (object.token !== undefined && object.token !== null) ? Token.fromPartial(object.token) : undefined;
+    message.underlyingBalance = object.underlyingBalance ?? "";
+    message.underlyingBalanceUsd = object.underlyingBalanceUsd ?? "";
+    message.variableBorrows = object.variableBorrows ?? "";
+    message.variableBorrowsUsd = object.variableBorrowsUsd ?? "";
+    message.totalBorrows = object.totalBorrows ?? "";
+    message.totalBorrowsUsd = object.totalBorrowsUsd ?? "";
+    return message;
+  },
+};
+
+function createBaseRepayTokensRequest(): RepayTokensRequest {
+  return { tokenUid: undefined, amount: "", borrowerWalletAddress: "" };
+}
+
+export const RepayTokensRequest = {
+  encode(message: RepayTokensRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.tokenUid !== undefined) {
+      TokenIdentifier.encode(message.tokenUid, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.amount !== "") {
+      writer.uint32(26).string(message.amount);
+    }
+    if (message.borrowerWalletAddress !== "") {
+      writer.uint32(34).string(message.borrowerWalletAddress);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): RepayTokensRequest {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRepayTokensRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.tokenUid = TokenIdentifier.decode(reader, reader.uint32());
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.amount = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.borrowerWalletAddress = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RepayTokensRequest {
+    return {
+      tokenUid: isSet(object.tokenUid) ? TokenIdentifier.fromJSON(object.tokenUid) : undefined,
+      amount: isSet(object.amount) ? globalThis.String(object.amount) : "",
+      borrowerWalletAddress: isSet(object.borrowerWalletAddress) ? globalThis.String(object.borrowerWalletAddress) : "",
+    };
+  },
+
+  toJSON(message: RepayTokensRequest): unknown {
+    const obj: any = {};
+    if (message.tokenUid !== undefined) {
+      obj.tokenUid = TokenIdentifier.toJSON(message.tokenUid);
+    }
+    if (message.amount !== "") {
+      obj.amount = message.amount;
+    }
+    if (message.borrowerWalletAddress !== "") {
+      obj.borrowerWalletAddress = message.borrowerWalletAddress;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<RepayTokensRequest>, I>>(base?: I): RepayTokensRequest {
+    return RepayTokensRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<RepayTokensRequest>, I>>(object: I): RepayTokensRequest {
+    const message = createBaseRepayTokensRequest();
+    message.tokenUid = (object.tokenUid !== undefined && object.tokenUid !== null)
+      ? TokenIdentifier.fromPartial(object.tokenUid)
+      : undefined;
+    message.amount = object.amount ?? "";
+    message.borrowerWalletAddress = object.borrowerWalletAddress ?? "";
+    return message;
+  },
+};
+
+function createBaseRepayTokensResponse(): RepayTokensResponse {
+  return {
+    tokenUid: undefined,
+    amount: "",
+    borrowerWalletAddress: "",
+    feeBreakdown: undefined,
+    transactions: [],
+    error: undefined,
+  };
+}
+
+export const RepayTokensResponse = {
+  encode(message: RepayTokensResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.tokenUid !== undefined) {
+      TokenIdentifier.encode(message.tokenUid, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.amount !== "") {
+      writer.uint32(26).string(message.amount);
+    }
+    if (message.borrowerWalletAddress !== "") {
+      writer.uint32(34).string(message.borrowerWalletAddress);
+    }
+    if (message.feeBreakdown !== undefined) {
+      FeeBreakdown.encode(message.feeBreakdown, writer.uint32(42).fork()).ldelim();
+    }
+    for (const v of message.transactions) {
+      TransactionPlan.encode(v!, writer.uint32(50).fork()).ldelim();
+    }
+    if (message.error !== undefined) {
+      TransactionPlanError.encode(message.error, writer.uint32(58).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): RepayTokensResponse {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRepayTokensResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.tokenUid = TokenIdentifier.decode(reader, reader.uint32());
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.amount = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.borrowerWalletAddress = reader.string();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.feeBreakdown = FeeBreakdown.decode(reader, reader.uint32());
+          continue;
+        case 6:
+          if (tag !== 50) {
+            break;
+          }
+
+          message.transactions.push(TransactionPlan.decode(reader, reader.uint32()));
+          continue;
+        case 7:
+          if (tag !== 58) {
+            break;
+          }
+
+          message.error = TransactionPlanError.decode(reader, reader.uint32());
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RepayTokensResponse {
+    return {
+      tokenUid: isSet(object.tokenUid) ? TokenIdentifier.fromJSON(object.tokenUid) : undefined,
+      amount: isSet(object.amount) ? globalThis.String(object.amount) : "",
+      borrowerWalletAddress: isSet(object.borrowerWalletAddress) ? globalThis.String(object.borrowerWalletAddress) : "",
+      feeBreakdown: isSet(object.feeBreakdown) ? FeeBreakdown.fromJSON(object.feeBreakdown) : undefined,
+      transactions: globalThis.Array.isArray(object?.transactions)
+        ? object.transactions.map((e: any) => TransactionPlan.fromJSON(e))
+        : [],
+      error: isSet(object.error) ? TransactionPlanError.fromJSON(object.error) : undefined,
+    };
+  },
+
+  toJSON(message: RepayTokensResponse): unknown {
+    const obj: any = {};
+    if (message.tokenUid !== undefined) {
+      obj.tokenUid = TokenIdentifier.toJSON(message.tokenUid);
+    }
+    if (message.amount !== "") {
+      obj.amount = message.amount;
+    }
+    if (message.borrowerWalletAddress !== "") {
+      obj.borrowerWalletAddress = message.borrowerWalletAddress;
+    }
+    if (message.feeBreakdown !== undefined) {
+      obj.feeBreakdown = FeeBreakdown.toJSON(message.feeBreakdown);
+    }
+    if (message.transactions?.length) {
+      obj.transactions = message.transactions.map((e) => TransactionPlan.toJSON(e));
+    }
+    if (message.error !== undefined) {
+      obj.error = TransactionPlanError.toJSON(message.error);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<RepayTokensResponse>, I>>(base?: I): RepayTokensResponse {
+    return RepayTokensResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<RepayTokensResponse>, I>>(object: I): RepayTokensResponse {
+    const message = createBaseRepayTokensResponse();
+    message.tokenUid = (object.tokenUid !== undefined && object.tokenUid !== null)
+      ? TokenIdentifier.fromPartial(object.tokenUid)
+      : undefined;
+    message.amount = object.amount ?? "";
+    message.borrowerWalletAddress = object.borrowerWalletAddress ?? "";
+    message.feeBreakdown = (object.feeBreakdown !== undefined && object.feeBreakdown !== null)
+      ? FeeBreakdown.fromPartial(object.feeBreakdown)
+      : undefined;
+    message.transactions = object.transactions?.map((e) => TransactionPlan.fromPartial(e)) || [];
+    message.error = (object.error !== undefined && object.error !== null)
+      ? TransactionPlanError.fromPartial(object.error)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseSupplyTokensRequest(): SupplyTokensRequest {
+  return { tokenUid: undefined, amount: "", supplierWalletAddress: "" };
+}
+
+export const SupplyTokensRequest = {
+  encode(message: SupplyTokensRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.tokenUid !== undefined) {
+      TokenIdentifier.encode(message.tokenUid, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.amount !== "") {
+      writer.uint32(26).string(message.amount);
+    }
+    if (message.supplierWalletAddress !== "") {
+      writer.uint32(34).string(message.supplierWalletAddress);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SupplyTokensRequest {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSupplyTokensRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.tokenUid = TokenIdentifier.decode(reader, reader.uint32());
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.amount = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.supplierWalletAddress = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SupplyTokensRequest {
+    return {
+      tokenUid: isSet(object.tokenUid) ? TokenIdentifier.fromJSON(object.tokenUid) : undefined,
+      amount: isSet(object.amount) ? globalThis.String(object.amount) : "",
+      supplierWalletAddress: isSet(object.supplierWalletAddress) ? globalThis.String(object.supplierWalletAddress) : "",
+    };
+  },
+
+  toJSON(message: SupplyTokensRequest): unknown {
+    const obj: any = {};
+    if (message.tokenUid !== undefined) {
+      obj.tokenUid = TokenIdentifier.toJSON(message.tokenUid);
+    }
+    if (message.amount !== "") {
+      obj.amount = message.amount;
+    }
+    if (message.supplierWalletAddress !== "") {
+      obj.supplierWalletAddress = message.supplierWalletAddress;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SupplyTokensRequest>, I>>(base?: I): SupplyTokensRequest {
+    return SupplyTokensRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<SupplyTokensRequest>, I>>(object: I): SupplyTokensRequest {
+    const message = createBaseSupplyTokensRequest();
+    message.tokenUid = (object.tokenUid !== undefined && object.tokenUid !== null)
+      ? TokenIdentifier.fromPartial(object.tokenUid)
+      : undefined;
+    message.amount = object.amount ?? "";
+    message.supplierWalletAddress = object.supplierWalletAddress ?? "";
+    return message;
+  },
+};
+
+function createBaseSupplyTokensResponse(): SupplyTokensResponse {
+  return {
+    tokenUid: undefined,
+    amount: "",
+    supplierWalletAddress: "",
+    feeBreakdown: undefined,
+    transactions: [],
+    error: undefined,
+  };
+}
+
+export const SupplyTokensResponse = {
+  encode(message: SupplyTokensResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.tokenUid !== undefined) {
+      TokenIdentifier.encode(message.tokenUid, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.amount !== "") {
+      writer.uint32(26).string(message.amount);
+    }
+    if (message.supplierWalletAddress !== "") {
+      writer.uint32(34).string(message.supplierWalletAddress);
+    }
+    if (message.feeBreakdown !== undefined) {
+      FeeBreakdown.encode(message.feeBreakdown, writer.uint32(42).fork()).ldelim();
+    }
+    for (const v of message.transactions) {
+      TransactionPlan.encode(v!, writer.uint32(50).fork()).ldelim();
+    }
+    if (message.error !== undefined) {
+      TransactionPlanError.encode(message.error, writer.uint32(58).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SupplyTokensResponse {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSupplyTokensResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.tokenUid = TokenIdentifier.decode(reader, reader.uint32());
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.amount = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.supplierWalletAddress = reader.string();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.feeBreakdown = FeeBreakdown.decode(reader, reader.uint32());
+          continue;
+        case 6:
+          if (tag !== 50) {
+            break;
+          }
+
+          message.transactions.push(TransactionPlan.decode(reader, reader.uint32()));
+          continue;
+        case 7:
+          if (tag !== 58) {
+            break;
+          }
+
+          message.error = TransactionPlanError.decode(reader, reader.uint32());
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SupplyTokensResponse {
+    return {
+      tokenUid: isSet(object.tokenUid) ? TokenIdentifier.fromJSON(object.tokenUid) : undefined,
+      amount: isSet(object.amount) ? globalThis.String(object.amount) : "",
+      supplierWalletAddress: isSet(object.supplierWalletAddress) ? globalThis.String(object.supplierWalletAddress) : "",
+      feeBreakdown: isSet(object.feeBreakdown) ? FeeBreakdown.fromJSON(object.feeBreakdown) : undefined,
+      transactions: globalThis.Array.isArray(object?.transactions)
+        ? object.transactions.map((e: any) => TransactionPlan.fromJSON(e))
+        : [],
+      error: isSet(object.error) ? TransactionPlanError.fromJSON(object.error) : undefined,
+    };
+  },
+
+  toJSON(message: SupplyTokensResponse): unknown {
+    const obj: any = {};
+    if (message.tokenUid !== undefined) {
+      obj.tokenUid = TokenIdentifier.toJSON(message.tokenUid);
+    }
+    if (message.amount !== "") {
+      obj.amount = message.amount;
+    }
+    if (message.supplierWalletAddress !== "") {
+      obj.supplierWalletAddress = message.supplierWalletAddress;
+    }
+    if (message.feeBreakdown !== undefined) {
+      obj.feeBreakdown = FeeBreakdown.toJSON(message.feeBreakdown);
+    }
+    if (message.transactions?.length) {
+      obj.transactions = message.transactions.map((e) => TransactionPlan.toJSON(e));
+    }
+    if (message.error !== undefined) {
+      obj.error = TransactionPlanError.toJSON(message.error);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SupplyTokensResponse>, I>>(base?: I): SupplyTokensResponse {
+    return SupplyTokensResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<SupplyTokensResponse>, I>>(object: I): SupplyTokensResponse {
+    const message = createBaseSupplyTokensResponse();
+    message.tokenUid = (object.tokenUid !== undefined && object.tokenUid !== null)
+      ? TokenIdentifier.fromPartial(object.tokenUid)
+      : undefined;
+    message.amount = object.amount ?? "";
+    message.supplierWalletAddress = object.supplierWalletAddress ?? "";
+    message.feeBreakdown = (object.feeBreakdown !== undefined && object.feeBreakdown !== null)
+      ? FeeBreakdown.fromPartial(object.feeBreakdown)
+      : undefined;
+    message.transactions = object.transactions?.map((e) => TransactionPlan.fromPartial(e)) || [];
+    message.error = (object.error !== undefined && object.error !== null)
+      ? TransactionPlanError.fromPartial(object.error)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseWithdrawTokensRequest(): WithdrawTokensRequest {
+  return { tokenUid: undefined, amount: "", lenderWalletAddress: "" };
+}
+
+export const WithdrawTokensRequest = {
+  encode(message: WithdrawTokensRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.tokenUid !== undefined) {
+      TokenIdentifier.encode(message.tokenUid, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.amount !== "") {
+      writer.uint32(26).string(message.amount);
+    }
+    if (message.lenderWalletAddress !== "") {
+      writer.uint32(34).string(message.lenderWalletAddress);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): WithdrawTokensRequest {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseWithdrawTokensRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.tokenUid = TokenIdentifier.decode(reader, reader.uint32());
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.amount = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.lenderWalletAddress = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): WithdrawTokensRequest {
+    return {
+      tokenUid: isSet(object.tokenUid) ? TokenIdentifier.fromJSON(object.tokenUid) : undefined,
+      amount: isSet(object.amount) ? globalThis.String(object.amount) : "",
+      lenderWalletAddress: isSet(object.lenderWalletAddress) ? globalThis.String(object.lenderWalletAddress) : "",
+    };
+  },
+
+  toJSON(message: WithdrawTokensRequest): unknown {
+    const obj: any = {};
+    if (message.tokenUid !== undefined) {
+      obj.tokenUid = TokenIdentifier.toJSON(message.tokenUid);
+    }
+    if (message.amount !== "") {
+      obj.amount = message.amount;
+    }
+    if (message.lenderWalletAddress !== "") {
+      obj.lenderWalletAddress = message.lenderWalletAddress;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<WithdrawTokensRequest>, I>>(base?: I): WithdrawTokensRequest {
+    return WithdrawTokensRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<WithdrawTokensRequest>, I>>(object: I): WithdrawTokensRequest {
+    const message = createBaseWithdrawTokensRequest();
+    message.tokenUid = (object.tokenUid !== undefined && object.tokenUid !== null)
+      ? TokenIdentifier.fromPartial(object.tokenUid)
+      : undefined;
+    message.amount = object.amount ?? "";
+    message.lenderWalletAddress = object.lenderWalletAddress ?? "";
+    return message;
+  },
+};
+
+function createBaseWithdrawTokensResponse(): WithdrawTokensResponse {
+  return {
+    tokenUid: undefined,
+    amount: "",
+    lenderWalletAddress: "",
+    feeBreakdown: undefined,
+    transactions: [],
+    error: undefined,
+  };
+}
+
+export const WithdrawTokensResponse = {
+  encode(message: WithdrawTokensResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.tokenUid !== undefined) {
+      TokenIdentifier.encode(message.tokenUid, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.amount !== "") {
+      writer.uint32(26).string(message.amount);
+    }
+    if (message.lenderWalletAddress !== "") {
+      writer.uint32(34).string(message.lenderWalletAddress);
+    }
+    if (message.feeBreakdown !== undefined) {
+      FeeBreakdown.encode(message.feeBreakdown, writer.uint32(42).fork()).ldelim();
+    }
+    for (const v of message.transactions) {
+      TransactionPlan.encode(v!, writer.uint32(50).fork()).ldelim();
+    }
+    if (message.error !== undefined) {
+      TransactionPlanError.encode(message.error, writer.uint32(58).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): WithdrawTokensResponse {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseWithdrawTokensResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.tokenUid = TokenIdentifier.decode(reader, reader.uint32());
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.amount = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.lenderWalletAddress = reader.string();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.feeBreakdown = FeeBreakdown.decode(reader, reader.uint32());
+          continue;
+        case 6:
+          if (tag !== 50) {
+            break;
+          }
+
+          message.transactions.push(TransactionPlan.decode(reader, reader.uint32()));
+          continue;
+        case 7:
+          if (tag !== 58) {
+            break;
+          }
+
+          message.error = TransactionPlanError.decode(reader, reader.uint32());
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): WithdrawTokensResponse {
+    return {
+      tokenUid: isSet(object.tokenUid) ? TokenIdentifier.fromJSON(object.tokenUid) : undefined,
+      amount: isSet(object.amount) ? globalThis.String(object.amount) : "",
+      lenderWalletAddress: isSet(object.lenderWalletAddress) ? globalThis.String(object.lenderWalletAddress) : "",
+      feeBreakdown: isSet(object.feeBreakdown) ? FeeBreakdown.fromJSON(object.feeBreakdown) : undefined,
+      transactions: globalThis.Array.isArray(object?.transactions)
+        ? object.transactions.map((e: any) => TransactionPlan.fromJSON(e))
+        : [],
+      error: isSet(object.error) ? TransactionPlanError.fromJSON(object.error) : undefined,
+    };
+  },
+
+  toJSON(message: WithdrawTokensResponse): unknown {
+    const obj: any = {};
+    if (message.tokenUid !== undefined) {
+      obj.tokenUid = TokenIdentifier.toJSON(message.tokenUid);
+    }
+    if (message.amount !== "") {
+      obj.amount = message.amount;
+    }
+    if (message.lenderWalletAddress !== "") {
+      obj.lenderWalletAddress = message.lenderWalletAddress;
+    }
+    if (message.feeBreakdown !== undefined) {
+      obj.feeBreakdown = FeeBreakdown.toJSON(message.feeBreakdown);
+    }
+    if (message.transactions?.length) {
+      obj.transactions = message.transactions.map((e) => TransactionPlan.toJSON(e));
+    }
+    if (message.error !== undefined) {
+      obj.error = TransactionPlanError.toJSON(message.error);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<WithdrawTokensResponse>, I>>(base?: I): WithdrawTokensResponse {
+    return WithdrawTokensResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<WithdrawTokensResponse>, I>>(object: I): WithdrawTokensResponse {
+    const message = createBaseWithdrawTokensResponse();
+    message.tokenUid = (object.tokenUid !== undefined && object.tokenUid !== null)
+      ? TokenIdentifier.fromPartial(object.tokenUid)
+      : undefined;
+    message.amount = object.amount ?? "";
+    message.lenderWalletAddress = object.lenderWalletAddress ?? "";
+    message.feeBreakdown = (object.feeBreakdown !== undefined && object.feeBreakdown !== null)
+      ? FeeBreakdown.fromPartial(object.feeBreakdown)
+      : undefined;
+    message.transactions = object.transactions?.map((e) => TransactionPlan.fromPartial(e)) || [];
+    message.error = (object.error !== undefined && object.error !== null)
+      ? TransactionPlanError.fromPartial(object.error)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseGetLendingUserSummaryRequest(): GetLendingUserSummaryRequest {
+  return { userAddress: "" };
+}
+
+export const GetLendingUserSummaryRequest = {
+  encode(message: GetLendingUserSummaryRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.userAddress !== "") {
+      writer.uint32(10).string(message.userAddress);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): GetLendingUserSummaryRequest {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetLendingUserSummaryRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userAddress = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetLendingUserSummaryRequest {
+    return { userAddress: isSet(object.userAddress) ? globalThis.String(object.userAddress) : "" };
+  },
+
+  toJSON(message: GetLendingUserSummaryRequest): unknown {
+    const obj: any = {};
+    if (message.userAddress !== "") {
+      obj.userAddress = message.userAddress;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<GetLendingUserSummaryRequest>, I>>(base?: I): GetLendingUserSummaryRequest {
+    return GetLendingUserSummaryRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GetLendingUserSummaryRequest>, I>>(object: I): GetLendingUserSummaryRequest {
+    const message = createBaseGetLendingUserSummaryRequest();
+    message.userAddress = object.userAddress ?? "";
+    return message;
+  },
+};
+
+function createBaseLendingReserve(): LendingReserve {
+  return {
+    tokenUid: undefined,
+    symbol: "",
+    decimals: 0,
+    supplyRate: "",
+    borrowRate: "",
+    reserveFactor: "",
+    reserveLiquidationThreshold: "",
+  };
+}
+
+export const LendingReserve = {
+  encode(message: LendingReserve, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.tokenUid !== undefined) {
+      TokenIdentifier.encode(message.tokenUid, writer.uint32(10).fork()).ldelim();
+    }
+    if (message.symbol !== "") {
+      writer.uint32(18).string(message.symbol);
+    }
+    if (message.decimals !== 0) {
+      writer.uint32(24).int32(message.decimals);
+    }
+    if (message.supplyRate !== "") {
+      writer.uint32(34).string(message.supplyRate);
+    }
+    if (message.borrowRate !== "") {
+      writer.uint32(42).string(message.borrowRate);
+    }
+    if (message.reserveFactor !== "") {
+      writer.uint32(50).string(message.reserveFactor);
+    }
+    if (message.reserveLiquidationThreshold !== "") {
+      writer.uint32(58).string(message.reserveLiquidationThreshold);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): LendingReserve {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseLendingReserve();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.tokenUid = TokenIdentifier.decode(reader, reader.uint32());
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.symbol = reader.string();
+          continue;
+        case 3:
+          if (tag !== 24) {
+            break;
+          }
+
+          message.decimals = reader.int32();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.supplyRate = reader.string();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.borrowRate = reader.string();
+          continue;
+        case 6:
+          if (tag !== 50) {
+            break;
+          }
+
+          message.reserveFactor = reader.string();
+          continue;
+        case 7:
+          if (tag !== 58) {
+            break;
+          }
+
+          message.reserveLiquidationThreshold = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): LendingReserve {
+    return {
+      tokenUid: isSet(object.tokenUid) ? TokenIdentifier.fromJSON(object.tokenUid) : undefined,
+      symbol: isSet(object.symbol) ? globalThis.String(object.symbol) : "",
+      decimals: isSet(object.decimals) ? globalThis.Number(object.decimals) : 0,
+      supplyRate: isSet(object.supplyRate) ? globalThis.String(object.supplyRate) : "",
+      borrowRate: isSet(object.borrowRate) ? globalThis.String(object.borrowRate) : "",
+      reserveFactor: isSet(object.reserveFactor) ? globalThis.String(object.reserveFactor) : "",
+      reserveLiquidationThreshold: isSet(object.reserveLiquidationThreshold)
+        ? globalThis.String(object.reserveLiquidationThreshold)
+        : "",
+    };
+  },
+
+  toJSON(message: LendingReserve): unknown {
+    const obj: any = {};
+    if (message.tokenUid !== undefined) {
+      obj.tokenUid = TokenIdentifier.toJSON(message.tokenUid);
+    }
+    if (message.symbol !== "") {
+      obj.symbol = message.symbol;
+    }
+    if (message.decimals !== 0) {
+      obj.decimals = Math.round(message.decimals);
+    }
+    if (message.supplyRate !== "") {
+      obj.supplyRate = message.supplyRate;
+    }
+    if (message.borrowRate !== "") {
+      obj.borrowRate = message.borrowRate;
+    }
+    if (message.reserveFactor !== "") {
+      obj.reserveFactor = message.reserveFactor;
+    }
+    if (message.reserveLiquidationThreshold !== "") {
+      obj.reserveLiquidationThreshold = message.reserveLiquidationThreshold;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<LendingReserve>, I>>(base?: I): LendingReserve {
+    return LendingReserve.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<LendingReserve>, I>>(object: I): LendingReserve {
+    const message = createBaseLendingReserve();
+    message.tokenUid = (object.tokenUid !== undefined && object.tokenUid !== null)
+      ? TokenIdentifier.fromPartial(object.tokenUid)
+      : undefined;
+    message.symbol = object.symbol ?? "";
+    message.decimals = object.decimals ?? 0;
+    message.supplyRate = object.supplyRate ?? "";
+    message.borrowRate = object.borrowRate ?? "";
+    message.reserveFactor = object.reserveFactor ?? "";
+    message.reserveLiquidationThreshold = object.reserveLiquidationThreshold ?? "";
+    return message;
+  },
+};
+
+function createBaseGetLendingReservesResponse(): GetLendingReservesResponse {
+  return { reserves: [] };
+}
+
+export const GetLendingReservesResponse = {
+  encode(message: GetLendingReservesResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    for (const v of message.reserves) {
+      LendingReserve.encode(v!, writer.uint32(10).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): GetLendingReservesResponse {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetLendingReservesResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.reserves.push(LendingReserve.decode(reader, reader.uint32()));
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetLendingReservesResponse {
+    return {
+      reserves: globalThis.Array.isArray(object?.reserves)
+        ? object.reserves.map((e: any) => LendingReserve.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: GetLendingReservesResponse): unknown {
+    const obj: any = {};
+    if (message.reserves?.length) {
+      obj.reserves = message.reserves.map((e) => LendingReserve.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<GetLendingReservesResponse>, I>>(base?: I): GetLendingReservesResponse {
+    return GetLendingReservesResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GetLendingReservesResponse>, I>>(object: I): GetLendingReservesResponse {
+    const message = createBaseGetLendingReservesResponse();
+    message.reserves = object.reserves?.map((e) => LendingReserve.fromPartial(e)) || [];
+    return message;
+  },
+};
+
 /**
  * The DataService provides information about chains and tokens.
  *
@@ -2531,6 +5077,21 @@ export const DataServiceService = {
     responseSerialize: (value: GetTokensResponse) => Buffer.from(GetTokensResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer) => GetTokensResponse.decode(value),
   },
+  /**
+   * Returns a list of capabilities filtered by capability type.
+   * Error codes:
+   *   - INVALID_ARGUMENT if request parameters are invalid.
+   *   - INTERNAL for server-side issues.
+   */
+  getCapabilities: {
+    path: "/ember_agents_onchain.v1.DataService/GetCapabilities",
+    requestStream: false,
+    responseStream: false,
+    requestSerialize: (value: GetCapabilitiesRequest) => Buffer.from(GetCapabilitiesRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer) => GetCapabilitiesRequest.decode(value),
+    responseSerialize: (value: GetCapabilitiesResponse) => Buffer.from(GetCapabilitiesResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer) => GetCapabilitiesResponse.decode(value),
+  },
 } as const;
 
 export interface DataServiceServer extends UntypedServiceImplementation {
@@ -2549,6 +5110,13 @@ export interface DataServiceServer extends UntypedServiceImplementation {
    *   - INTERNAL for server-side issues.
    */
   getTokens: handleUnaryCall<GetTokensRequest, GetTokensResponse>;
+  /**
+   * Returns a list of capabilities filtered by capability type.
+   * Error codes:
+   *   - INVALID_ARGUMENT if request parameters are invalid.
+   *   - INTERNAL for server-side issues.
+   */
+  getCapabilities: handleUnaryCall<GetCapabilitiesRequest, GetCapabilitiesResponse>;
 }
 
 export interface DataServiceClient extends Client {
@@ -2595,6 +5163,27 @@ export interface DataServiceClient extends Client {
     options: Partial<CallOptions>,
     callback: (error: ServiceError | null, response: GetTokensResponse) => void,
   ): ClientUnaryCall;
+  /**
+   * Returns a list of capabilities filtered by capability type.
+   * Error codes:
+   *   - INVALID_ARGUMENT if request parameters are invalid.
+   *   - INTERNAL for server-side issues.
+   */
+  getCapabilities(
+    request: GetCapabilitiesRequest,
+    callback: (error: ServiceError | null, response: GetCapabilitiesResponse) => void,
+  ): ClientUnaryCall;
+  getCapabilities(
+    request: GetCapabilitiesRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: GetCapabilitiesResponse) => void,
+  ): ClientUnaryCall;
+  getCapabilities(
+    request: GetCapabilitiesRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: GetCapabilitiesResponse) => void,
+  ): ClientUnaryCall;
 }
 
 export const DataServiceClient = makeGenericClientConstructor(
@@ -2603,6 +5192,65 @@ export const DataServiceClient = makeGenericClientConstructor(
 ) as unknown as {
   new (address: string, credentials: ChannelCredentials, options?: Partial<ClientOptions>): DataServiceClient;
   service: typeof DataServiceService;
+  serviceName: string;
+};
+
+/** New service for wallet context details. This groups queries related to a wallet's positions and balances. */
+export type WalletContextService = typeof WalletContextService;
+export const WalletContextService = {
+  /**
+   * Gets wallet positions for a given wallet address.
+   * Currently returns borrow positions; will be extended to include vault positions, lending positions, and token balances in the future.
+   */
+  getWalletPositions: {
+    path: "/ember_agents_onchain.v1.WalletContext/GetWalletPositions",
+    requestStream: false,
+    responseStream: false,
+    requestSerialize: (value: GetWalletPositionsRequest) =>
+      Buffer.from(GetWalletPositionsRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer) => GetWalletPositionsRequest.decode(value),
+    responseSerialize: (value: GetWalletPositionsResponse) =>
+      Buffer.from(GetWalletPositionsResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer) => GetWalletPositionsResponse.decode(value),
+  },
+} as const;
+
+export interface WalletContextServer extends UntypedServiceImplementation {
+  /**
+   * Gets wallet positions for a given wallet address.
+   * Currently returns borrow positions; will be extended to include vault positions, lending positions, and token balances in the future.
+   */
+  getWalletPositions: handleUnaryCall<GetWalletPositionsRequest, GetWalletPositionsResponse>;
+}
+
+export interface WalletContextClient extends Client {
+  /**
+   * Gets wallet positions for a given wallet address.
+   * Currently returns borrow positions; will be extended to include vault positions, lending positions, and token balances in the future.
+   */
+  getWalletPositions(
+    request: GetWalletPositionsRequest,
+    callback: (error: ServiceError | null, response: GetWalletPositionsResponse) => void,
+  ): ClientUnaryCall;
+  getWalletPositions(
+    request: GetWalletPositionsRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: GetWalletPositionsResponse) => void,
+  ): ClientUnaryCall;
+  getWalletPositions(
+    request: GetWalletPositionsRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: GetWalletPositionsResponse) => void,
+  ): ClientUnaryCall;
+}
+
+export const WalletContextClient = makeGenericClientConstructor(
+  WalletContextService,
+  "ember_agents_onchain.v1.WalletContext",
+) as unknown as {
+  new (address: string, credentials: ChannelCredentials, options?: Partial<ClientOptions>): WalletContextClient;
+  service: typeof WalletContextService;
   serviceName: string;
 };
 
@@ -2626,6 +5274,58 @@ export const CreateTransactionService = {
     responseSerialize: (value: SwapTokensResponse) => Buffer.from(SwapTokensResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer) => SwapTokensResponse.decode(value),
   },
+  /**
+   * Creates a transaction for borrowing tokens.
+   * Error codes:
+   *   - INVALID_ARGUMENT if the request parameters are invalid
+   *   - NOT_FOUND if token or chain cannot be found
+   *   - INTERNAL for server-side issues
+   *   - FAILED_PRECONDITION if the borrowing transaction is not possible
+   */
+  borrowTokens: {
+    path: "/ember_agents_onchain.v1.CreateTransaction/BorrowTokens",
+    requestStream: false,
+    responseStream: false,
+    requestSerialize: (value: BorrowTokensRequest) => Buffer.from(BorrowTokensRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer) => BorrowTokensRequest.decode(value),
+    responseSerialize: (value: BorrowTokensResponse) => Buffer.from(BorrowTokensResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer) => BorrowTokensResponse.decode(value),
+  },
+  repayTokens: {
+    path: "/ember_agents_onchain.v1.CreateTransaction/RepayTokens",
+    requestStream: false,
+    responseStream: false,
+    requestSerialize: (value: RepayTokensRequest) => Buffer.from(RepayTokensRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer) => RepayTokensRequest.decode(value),
+    responseSerialize: (value: RepayTokensResponse) => Buffer.from(RepayTokensResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer) => RepayTokensResponse.decode(value),
+  },
+  supplyTokens: {
+    path: "/ember_agents_onchain.v1.CreateTransaction/SupplyTokens",
+    requestStream: false,
+    responseStream: false,
+    requestSerialize: (value: SupplyTokensRequest) => Buffer.from(SupplyTokensRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer) => SupplyTokensRequest.decode(value),
+    responseSerialize: (value: SupplyTokensResponse) => Buffer.from(SupplyTokensResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer) => SupplyTokensResponse.decode(value),
+  },
+  /**
+   * Added RPC for withdrawing tokens (removing or retrieving lent tokens)
+   * Error codes:
+   *   - INVALID_ARGUMENT if the request parameters are invalid
+   *   - NOT_FOUND if token or chain cannot be found
+   *   - INTERNAL for server-side issues
+   *   - FAILED_PRECONDITION if the withdrawal is not possible (e.g., insufficient balance)
+   */
+  withdrawTokens: {
+    path: "/ember_agents_onchain.v1.CreateTransaction/WithdrawTokens",
+    requestStream: false,
+    responseStream: false,
+    requestSerialize: (value: WithdrawTokensRequest) => Buffer.from(WithdrawTokensRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer) => WithdrawTokensRequest.decode(value),
+    responseSerialize: (value: WithdrawTokensResponse) => Buffer.from(WithdrawTokensResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer) => WithdrawTokensResponse.decode(value),
+  },
 } as const;
 
 export interface CreateTransactionServer extends UntypedServiceImplementation {
@@ -2638,6 +5338,26 @@ export interface CreateTransactionServer extends UntypedServiceImplementation {
    *   - FAILED_PRECONDITION if the swap is not possible
    */
   swapTokens: handleUnaryCall<SwapTokensRequest, SwapTokensResponse>;
+  /**
+   * Creates a transaction for borrowing tokens.
+   * Error codes:
+   *   - INVALID_ARGUMENT if the request parameters are invalid
+   *   - NOT_FOUND if token or chain cannot be found
+   *   - INTERNAL for server-side issues
+   *   - FAILED_PRECONDITION if the borrowing transaction is not possible
+   */
+  borrowTokens: handleUnaryCall<BorrowTokensRequest, BorrowTokensResponse>;
+  repayTokens: handleUnaryCall<RepayTokensRequest, RepayTokensResponse>;
+  supplyTokens: handleUnaryCall<SupplyTokensRequest, SupplyTokensResponse>;
+  /**
+   * Added RPC for withdrawing tokens (removing or retrieving lent tokens)
+   * Error codes:
+   *   - INVALID_ARGUMENT if the request parameters are invalid
+   *   - NOT_FOUND if token or chain cannot be found
+   *   - INTERNAL for server-side issues
+   *   - FAILED_PRECONDITION if the withdrawal is not possible (e.g., insufficient balance)
+   */
+  withdrawTokens: handleUnaryCall<WithdrawTokensRequest, WithdrawTokensResponse>;
 }
 
 export interface CreateTransactionClient extends Client {
@@ -2663,6 +5383,82 @@ export interface CreateTransactionClient extends Client {
     metadata: Metadata,
     options: Partial<CallOptions>,
     callback: (error: ServiceError | null, response: SwapTokensResponse) => void,
+  ): ClientUnaryCall;
+  /**
+   * Creates a transaction for borrowing tokens.
+   * Error codes:
+   *   - INVALID_ARGUMENT if the request parameters are invalid
+   *   - NOT_FOUND if token or chain cannot be found
+   *   - INTERNAL for server-side issues
+   *   - FAILED_PRECONDITION if the borrowing transaction is not possible
+   */
+  borrowTokens(
+    request: BorrowTokensRequest,
+    callback: (error: ServiceError | null, response: BorrowTokensResponse) => void,
+  ): ClientUnaryCall;
+  borrowTokens(
+    request: BorrowTokensRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: BorrowTokensResponse) => void,
+  ): ClientUnaryCall;
+  borrowTokens(
+    request: BorrowTokensRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: BorrowTokensResponse) => void,
+  ): ClientUnaryCall;
+  repayTokens(
+    request: RepayTokensRequest,
+    callback: (error: ServiceError | null, response: RepayTokensResponse) => void,
+  ): ClientUnaryCall;
+  repayTokens(
+    request: RepayTokensRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: RepayTokensResponse) => void,
+  ): ClientUnaryCall;
+  repayTokens(
+    request: RepayTokensRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: RepayTokensResponse) => void,
+  ): ClientUnaryCall;
+  supplyTokens(
+    request: SupplyTokensRequest,
+    callback: (error: ServiceError | null, response: SupplyTokensResponse) => void,
+  ): ClientUnaryCall;
+  supplyTokens(
+    request: SupplyTokensRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: SupplyTokensResponse) => void,
+  ): ClientUnaryCall;
+  supplyTokens(
+    request: SupplyTokensRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: SupplyTokensResponse) => void,
+  ): ClientUnaryCall;
+  /**
+   * Added RPC for withdrawing tokens (removing or retrieving lent tokens)
+   * Error codes:
+   *   - INVALID_ARGUMENT if the request parameters are invalid
+   *   - NOT_FOUND if token or chain cannot be found
+   *   - INTERNAL for server-side issues
+   *   - FAILED_PRECONDITION if the withdrawal is not possible (e.g., insufficient balance)
+   */
+  withdrawTokens(
+    request: WithdrawTokensRequest,
+    callback: (error: ServiceError | null, response: WithdrawTokensResponse) => void,
+  ): ClientUnaryCall;
+  withdrawTokens(
+    request: WithdrawTokensRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: WithdrawTokensResponse) => void,
+  ): ClientUnaryCall;
+  withdrawTokens(
+    request: WithdrawTokensRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: WithdrawTokensResponse) => void,
   ): ClientUnaryCall;
 }
 
