@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 .pnpm-store/
+examples/aave-agent/pnpm-lock.yaml
 
 # Build outputs
 dist/
