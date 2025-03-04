@@ -3,18 +3,16 @@ import { ethers } from "ethers";
 import { OpenAI } from "openai";
 import { ChatCompletionCreateParams } from "openai/resources/index.mjs";
 
-// Import types from Ember SDK
+// Import Ember SDK
 import {
+  EmberClient,
   TransactionPlan,
   GetCapabilitiesResponse,
   Capability,
   CapabilityType,
   GetWalletPositionsResponse,
   WalletPosition,
-} from "../../src/generated/onchain_actions.js";
-import {
-  EmberClient
-} from "../../src/lib/types/client.js";
+} from "@emberai/sdk-typescript";
 
 function logError(...args: unknown[]) {
   console.error(...args);

@@ -5,11 +5,12 @@
   "type": "module",
   "main": "index.ts",
   "scripts": {
-    "start": "tsx index.ts",
-    "build": "tsc"
+    "start": "npx tsx index.ts"
   },
   "dependencies": {
-    "@emberai/sdk-typescript": "0.4.0",
+    "@emberai/sdk-typescript": "0.3.0-beta.3",
+    "@grpc/grpc-js": "^1.12.6",
+    "@grpc/proto-loader": "^0.7.13",
     "dotenv": "^16.3.1",
     "ethers": "^5.7.2",
     "openai": "^4.20.0",
@@ -20,4 +21,4 @@
     "@types/node": "^20.10.0",
     "typescript": "^5.3.2"
   }
-} 
+}
