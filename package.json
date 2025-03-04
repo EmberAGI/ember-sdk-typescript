@@ -23,6 +23,7 @@
     "dev": "tsx watch src/index.ts",
     "clean": "rm -rf dist src/generated",
     "prebuild": "pnpm run clean",
+    "prepare": "pnpm run build",
     "test": "mocha --require tsx 'test/**/*.test.ts'",
     "lint:check": "tsc --noEmit",
     "generate-proto": "./scripts/generate-proto.sh"
