@@ -52,7 +52,9 @@
     "@types/long": "^5.0.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.10.7",
+    "@viem/anvil": "^0.0.10",
     "chai": "^5.1.2",
+    "dotenv": "^16.4.7",
     "long": "^5.2.3",
     "mocha": "^11.1.0",
     "protobufjs": "^7.2.5",
@@ -66,13 +68,22 @@
   },
   "release": {
     "branches": [
-      {"name": "main", "channel": "beta", "prerelease": "beta"},
-      {"name": "latest"}
+      {
+        "name": "main",
+        "channel": "beta",
+        "prerelease": "beta"
+      },
+      {
+        "name": "latest"
+      }
     ],
     "plugins": [
       "@semantic-release/commit-analyzer",
       "@semantic-release/npm",
       "@semantic-release/github"
     ]
+  },
+  "dependencies": {
+    "prool": "^0.0.23"
   }
 }
