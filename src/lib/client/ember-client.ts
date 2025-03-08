@@ -39,8 +39,13 @@ export class EmberGrpcClient implements EmberClient {
     
     this.dataClient = new DataServiceClient(config.endpoint, credentials);
     this.walletContextClient = new WalletContextClient(config.endpoint, credentials);
-    this.transactionClient = new CreateTransactionClient(config.endpoint, credentials);
     this.executionClient = new TransactionExecutionClient(config.endpoint, credentials);
+    // Transaction plan data may be greater than the default 4MB message size limit
+    const channelOptions: grpc.ChannelOptions = {
+      'grpc.max_receive_message_length': 8 * 1024 * 1024, // 8MB
+      'grpc.max_send_message_length': 8 * 1024 * 1024,    // 8MB
+    };
+    this.transactionClient = new CreateTransactionClient(config.endpoint, credentials, channelOptions);
     
     this.metadata = new grpc.Metadata();
     if (config.apiKey) {
