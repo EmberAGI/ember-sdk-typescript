@@ -8,6 +8,7 @@ on:
 
 jobs:
   continuous_integration:
+    environment: dev
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the repo
