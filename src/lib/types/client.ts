@@ -20,7 +20,7 @@ import type {
   TransactionPlan,
   GetCapabilitiesRequest,
   GetCapabilitiesResponse
-} from '../../generated/onchain_actions.js';
+} from '../../generated/onchain-actions/onchain_actions.ts';
 
 export interface EmberClientConfig {
   /** gRPC endpoint URL */
@@ -34,16 +34,16 @@ export interface EmberClientConfig {
 export interface EmberClient {
   /** Get supported blockchain networks */
   getChains(request: GetChainsRequest): Promise<GetChainsResponse>;
-  
+
   /** Get tokens, optionally filtered by chain */
   getTokens(request: GetTokensRequest): Promise<GetTokensResponse>;
-  
+
   /** Create a token swap transaction */
   swapTokens(request: SwapTokensRequest): Promise<SwapTokensResponse>;
-  
+
   /** Get the tracking status of a transaction from a provider */
   getProviderTrackingStatus(request: GetProviderTrackingStatusRequest): Promise<GetProviderTrackingStatusResponse>;
-  
+
   /** AAVE-specific methods */
   getCapabilities(request: GetCapabilitiesRequest): Promise<GetCapabilitiesResponse>;
   borrowTokens(request: BorrowTokensRequest): Promise<BorrowTokensResponse>;
@@ -54,4 +54,4 @@ export interface EmberClient {
 
   /** Close the client connection */
   close(): void;
-} 
+}
