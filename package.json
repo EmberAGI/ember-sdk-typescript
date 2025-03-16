@@ -25,7 +25,9 @@
     "test": "mocha --require tsx 'test/**/*.test.ts'",
     "lint:check": "tsc --noEmit",
     "lint:require-submodule": "./scripts/require-submodule.sh",
-    "generate-proto": "pnpm run lint:require-submodule && ./scripts/generate-proto.sh"
+    "generate-proto": "pnpm run lint:require-submodule && ./scripts/generate-proto.sh",
+    "agent:aave": "npx tsx examples/aave-agent/index.ts",
+    "agent:camelot": "npx tsx --no-warnings examples/camelot-agent/index.ts"
   },
   "keywords": [
     "grpc",
@@ -78,11 +80,6 @@
       "@semantic-release/commit-analyzer",
       "@semantic-release/npm",
       "@semantic-release/github"
-    ]
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "grpc-tools"
     ]
   }
 }

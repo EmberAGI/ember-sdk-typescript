@@ -3,7 +3,7 @@ import { ethers } from "ethers";
 import { OpenAI } from "openai";
 import { ChatCompletionCreateParams } from "openai/resources/index.mjs";
 
-// Import Ember SDK
+// Import types from Ember SDK
 import {
   EmberClient,
   TransactionPlan,
@@ -259,7 +259,7 @@ export class Agent {
       } catch (e) {
         this.conversationHistory.push({
           role: "assistant",
-          content: `${functionName} call error: ${e}`
+          content: `${functionName} call error: ${e}`,
         });
         logError("handleResponse", e);
       }
@@ -276,7 +276,7 @@ export class Agent {
     functionName: string,
     args: Record<string, unknown>,
   ): Promise<{ content: string; followUp: boolean }> {
-    console.log('tool:', functionName, args);
+    console.log("tool:", functionName, args);
     const withFollowUp = (content: string) => ({ content, followUp: true });
     const verbatim = (content: string) => ({ content, followUp: false });
     switch (functionName) {
@@ -312,9 +312,7 @@ export class Agent {
     try {
       const transactions = await actionFunction();
       for (const transaction of transactions) {
-        const txHash = await this.signAndSendTransaction(
-          transaction
-        );
+        const txHash = await this.signAndSendTransaction(transaction);
         console.log("transaction sent:", txHash);
       }
       return `${actionName}: success!`;
@@ -438,7 +436,6 @@ export class Agent {
     });
   }
 
-
   private describeWalletPosition(position: WalletPosition): string {
     if (position.lendingPosition) {
       let output = "User Positions:\n";
@@ -469,12 +466,12 @@ export class Agent {
       }
       return output;
     }
-    return '';
+    return "";
   }
 
   async toolGetUserPositions(): Promise<string> {
     try {
-      let res = '';
+      let res = "";
       const positionsResponse = (await this.client.getWalletPositions({
         walletAddress: this.userAddress,
       })) as GetWalletPositionsResponse;
@@ -498,9 +495,7 @@ export class Agent {
       from: this.userAddress,
     };
     await provider!.estimateGas(ethersTx);
-    const txResponse = await this.signer.sendTransaction(
-      ethersTx,
-    );
+    const txResponse = await this.signer.sendTransaction(ethersTx);
     await txResponse.wait();
     return txResponse.hash;
   }

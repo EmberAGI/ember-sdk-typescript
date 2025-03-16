@@ -8,9 +8,7 @@
     "start": "npx tsx index.ts"
   },
   "dependencies": {
-    "@emberai/sdk-typescript": "0.3.0-beta.3",
-    "@grpc/grpc-js": "^1.12.6",
-    "@grpc/proto-loader": "^0.7.13",
+    "@emberai/sdk-typescript": "workspace:*",
     "dotenv": "^16.3.1",
     "ethers": "^5.7.2",
     "openai": "^4.20.0",
