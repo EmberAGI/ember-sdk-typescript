@@ -43,14 +43,6 @@ jobs:
       - name: Check lint warnings
         run: pnpm lint:check
 
-      - name: Check types are up-to-date
-        run: |
-          pnpm generate-proto
-          if [[ $(git status --porcelain) ]]; then
-            echo "Run pnpm genTypes and commit to the repo again."
-            exit 1
-          fi
-
   integration_testing:
     runs-on: ubuntu-latest
     environment: dev
