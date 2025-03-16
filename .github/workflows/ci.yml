@@ -15,7 +15,7 @@ jobs:
         with:
           fetch-depth: 0
           submodules: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 
       - name: Install protoc
         run: |
