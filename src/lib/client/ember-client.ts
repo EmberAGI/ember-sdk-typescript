@@ -20,6 +20,8 @@ import {
   // WalletContext types
   GetWalletPositionsRequest,
   GetWalletPositionsResponse,
+  GetUserLiquidityPositionsRequest,
+  GetUserLiquidityPositionsResponse,
   // CreateTransaction types
   SwapTokensRequest,
   SwapTokensResponse,
@@ -31,6 +33,11 @@ import {
   SupplyTokensResponse,
   WithdrawTokensRequest,
   WithdrawTokensResponse,
+  SupplyLiquidityRequest,
+  SupplyLiquidityResponse,
+  WithdrawLiquidityRequest,
+  WithdrawLiquidityResponse,
+  GetLiquidityPoolsResponse,
   // TransactionExecution types
   GetProviderTrackingStatusRequest,
   GetProviderTrackingStatusResponse,
@@ -145,6 +152,30 @@ export class EmberGrpcClient {
     });
   }
 
+  getUserLiquidityPositions(
+    request: GetUserLiquidityPositionsRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<GetUserLiquidityPositionsResponse> {
+    return new Promise((resolve, reject) => {
+      this.walletContextClient.getUserLiquidityPositions(
+        request,
+        metadata,
+        options || {},
+        (
+          err: ServiceError | null,
+          response?: GetUserLiquidityPositionsResponse,
+        ) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
   // CreateTransaction methods
   swapTokens(
     request: SwapTokensRequest,
@@ -241,6 +272,68 @@ export class EmberGrpcClient {
         metadata,
         options || {},
         (err: ServiceError | null, response?: WithdrawTokensResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
+  supplyLiquidity(
+    request: SupplyLiquidityRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<SupplyLiquidityResponse> {
+    return new Promise((resolve, reject) => {
+      this.createTransactionClient.supplyLiquidity(
+        request,
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: SupplyLiquidityResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
+  withdrawLiquidity(
+    request: WithdrawLiquidityRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<WithdrawLiquidityResponse> {
+    return new Promise((resolve, reject) => {
+      this.createTransactionClient.withdrawLiquidity(
+        request,
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: WithdrawLiquidityResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
+  getLiquidityPools(
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<GetLiquidityPoolsResponse> {
+    return new Promise((resolve, reject) => {
+      this.createTransactionClient.getLiquidityPools(
+        {},
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: GetLiquidityPoolsResponse) => {
           if (err || !response) {
             reject(err);
           } else {

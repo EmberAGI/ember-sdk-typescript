@@ -10,7 +10,7 @@
     "outDir": "./dist",
     "declaration": true,
     "sourceMap": true,
-    "rootDir": "./",
+    "rootDir": "./src",
     "baseUrl": ".",
     "allowJs": true,
     "paths": {

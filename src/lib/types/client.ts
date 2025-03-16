@@ -19,7 +19,14 @@ import type {
   GetWalletPositionsResponse,
   TransactionPlan,
   GetCapabilitiesRequest,
-  GetCapabilitiesResponse
+  GetCapabilitiesResponse,
+  SupplyLiquidityRequest,
+  SupplyLiquidityResponse,
+  WithdrawLiquidityRequest,
+  WithdrawLiquidityResponse,
+  GetLiquidityPoolsResponse,
+  GetUserLiquidityPositionsRequest,
+  GetUserLiquidityPositionsResponse,
 } from '../../generated/onchain-actions/onchain_actions.ts';
 
 export interface EmberClientConfig {
@@ -38,8 +45,19 @@ export interface EmberClient {
   /** Get tokens, optionally filtered by chain */
   getTokens(request: GetTokensRequest): Promise<GetTokensResponse>;
 
+  getUserLiquidityPositions(
+    request: GetUserLiquidityPositionsRequest,
+  ): Promise<GetUserLiquidityPositionsResponse>;
+
   /** Create a token swap transaction */
   swapTokens(request: SwapTokensRequest): Promise<SwapTokensResponse>;
+  supplyLiquidity(
+    request: SupplyLiquidityRequest,
+  ): Promise<SupplyLiquidityResponse>;
+  withdrawLiquidity(
+    request: WithdrawLiquidityRequest,
+  ): Promise<WithdrawLiquidityResponse>;
+  getLiquidityPools(): Promise<GetLiquidityPoolsResponse>;
 
   /** Get the tracking status of a transaction from a provider */
   getProviderTrackingStatus(request: GetProviderTrackingStatusRequest): Promise<GetProviderTrackingStatusResponse>;

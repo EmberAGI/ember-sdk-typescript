@@ -15,6 +15,7 @@ src/generated/
 
 # Logs
 *.log
+*.tsbuildinfo
 npm-debug.log*
 pnpm-debug.log*
 
