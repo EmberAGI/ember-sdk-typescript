@@ -27,7 +27,7 @@ import type {
   GetLiquidityPoolsResponse,
   GetUserLiquidityPositionsRequest,
   GetUserLiquidityPositionsResponse,
-} from '../../generated/onchain-actions/onchain_actions.ts';
+} from "../../generated/onchain-actions/onchain_actions.ts";
 
 export interface EmberClientConfig {
   /** gRPC endpoint URL */
@@ -60,15 +60,23 @@ export interface EmberClient {
   getLiquidityPools(): Promise<GetLiquidityPoolsResponse>;
 
   /** Get the tracking status of a transaction from a provider */
-  getProviderTrackingStatus(request: GetProviderTrackingStatusRequest): Promise<GetProviderTrackingStatusResponse>;
+  getProviderTrackingStatus(
+    request: GetProviderTrackingStatusRequest,
+  ): Promise<GetProviderTrackingStatusResponse>;
 
   /** AAVE-specific methods */
-  getCapabilities(request: GetCapabilitiesRequest): Promise<GetCapabilitiesResponse>;
+  getCapabilities(
+    request: GetCapabilitiesRequest,
+  ): Promise<GetCapabilitiesResponse>;
   borrowTokens(request: BorrowTokensRequest): Promise<BorrowTokensResponse>;
   repayTokens(request: RepayTokensRequest): Promise<RepayTokensResponse>;
   supplyTokens(request: SupplyTokensRequest): Promise<SupplyTokensResponse>;
-  withdrawTokens(request: WithdrawTokensRequest): Promise<WithdrawTokensResponse>;
-  getWalletPositions(request: GetWalletPositionsRequest): Promise<GetWalletPositionsResponse>;
+  withdrawTokens(
+    request: WithdrawTokensRequest,
+  ): Promise<WithdrawTokensResponse>;
+  getWalletPositions(
+    request: GetWalletPositionsRequest,
+  ): Promise<GetWalletPositionsResponse>;
 
   /** Close the client connection */
   close(): void;
