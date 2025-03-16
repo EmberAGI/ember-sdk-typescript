@@ -6,6 +6,7 @@ examples/aave-agent/pnpm-lock.yaml
 # Build outputs
 dist/
 build/
+src/generated/
 
 # Environment variables
 .env
@@ -24,4 +25,4 @@ pnpm-debug.log*
 *.ntvs*
 *.njsproj
 *.sln
-*.sw? 
+*.sw?
