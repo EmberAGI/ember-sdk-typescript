@@ -30,14 +30,23 @@ const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
 const { chainId } = await provider.getNetwork();
 const blockNumber = await provider.getBlockNumber();
 
-function handleStream(stream: NodeJS.ReadableStream, tag: string, logFn: (message: string) => void): void {
+function handleStream(
+  stream: NodeJS.ReadableStream,
+  tag: string,
+  logFn: (message: string) => void,
+): void {
   const rl = readline.createInterface({ input: stream });
   rl.on("line", (line) => {
     logFn(`[${tag}] ${line}`);
   });
 }
 
-async function runCommand(command: string, source: string, options = {}, waitFor?: string): Promise<void> {
+async function runCommand(
+  command: string,
+  source: string,
+  options = {},
+  waitFor?: string,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     console.log(`[${source}] Running: ${command}`);
     const child = spawn(command, { shell: true, ...options });
@@ -63,10 +72,22 @@ async function runCommand(command: string, source: string, options = {}, waitFor
     child.on("close", (code) => {
       if (waitFor) {
         if (!resolved) {
-          reject(new Error(`[${source}] Command "${command}" closed with code ${code} without emitting waitFor string "${waitFor}"`));
+          reject(
+            new Error(
+              `[${source}] Command "${command}" closed with code ${code} without emitting waitFor string "${waitFor}"`,
+            ),
+          );
         }
       } else {
-        code === 0 ? resolveOnce() : reject(new Error(`[${source}] Command "${command}" exited with code ${code}`));
+        if (code === 0) {
+          resolveOnce();
+        } else {
+          reject(
+            new Error(
+              `[${source}] Command "${command}" exited with code ${code}`,
+            ),
+          );
+        }
       }
     });
     child.on("error", (err) => reject(err));
@@ -75,13 +96,18 @@ async function runCommand(command: string, source: string, options = {}, waitFor
 
 process.chdir("onchain-actions");
 process.env.AAVE_RPC_URL = rpcUrl;
-await runCommand("docker compose -f compose.local.yaml up -d --wait", "compose");
+await runCommand(
+  "docker compose -f compose.local.yaml up -d --wait",
+  "compose",
+);
 await runCommand("pnpm install", "install");
 try {
   await runCommand("pnpm run dev", "dev", {}, "service running");
 } catch (e) {
   console.error(e);
-  throw new Error("Did you forget to populate .env in the onchain-actions/ folder?\nGo to onchain-actions and fix this problem manually: the goal is to be able to run `pnpm run dev`");
+  throw new Error(
+    "Did you forget to populate .env in the onchain-actions/ folder?\nGo to onchain-actions and fix this problem manually: the goal is to be able to run `pnpm run dev`",
+  );
 }
 
 console.log("Chain ID:", chainId);

@@ -64,8 +64,8 @@ export class Agent {
     });
   }
 
-  async log () {
-    console.log(...arguments);
+  async log(...args) {
+    console.log(...args);
   }
 
   async init() {
@@ -77,9 +77,7 @@ export class Agent {
       },
     ];
 
-    this.log(
-      "Fetching lending and borrowing capabilities from Ember SDK...",
-    );
+    this.log("Fetching lending and borrowing capabilities from Ember SDK...");
 
     const lendingCapabilities = (await this.client.getCapabilities({
       type: CapabilityType.LENDING,
@@ -214,7 +212,9 @@ export class Agent {
     });
   }
 
-  async processUserInput(userInput: string): Promise<ChatCompletionRequestMessage> {
+  async processUserInput(
+    userInput: string,
+  ): Promise<ChatCompletionRequestMessage> {
     this.conversationHistory.push({ role: "user", content: userInput });
     const response = await this.callChatCompletion();
     response.content = response.content || "";
