@@ -44,7 +44,9 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Install dependencies
-        run: pnpm i --frozen-lockfile
+        run: |
+          pnpm i --frozen-lockfile
+          pnpm --filter aave-agent-example install --frozen-lockfile
 
       - name: Build the package
         run: pnpm run build
@@ -64,7 +66,8 @@ jobs:
 
           echo "Waiting for server to be ready..."
 
-          timeout=100
+          timeout=200
+
           until grep -q "You can run integration tests now" server_output.log || [ $timeout -le 0 ]; do
             sleep 1
             timeout=$((timeout - 1))
