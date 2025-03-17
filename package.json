@@ -91,5 +91,12 @@
       "@semantic-release/npm",
       "@semantic-release/github"
     ]
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "grpc-tools",
+      "protobufjs"
+    ]
   }
 }
