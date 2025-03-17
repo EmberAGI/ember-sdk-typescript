@@ -17,7 +17,6 @@ import type {
   WithdrawTokensResponse,
   GetWalletPositionsRequest,
   GetWalletPositionsResponse,
-  TransactionPlan,
   GetCapabilitiesRequest,
   GetCapabilitiesResponse,
   SupplyLiquidityRequest,

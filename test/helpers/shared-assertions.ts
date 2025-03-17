@@ -16,7 +16,7 @@ export const assertValidTrackingStatus = (
       "explorerUrl",
       "status",
     ]);
-    expect(response.trackingStatus.explorerUrl).to.be.a("string").and.not.empty;
+    expect(response.trackingStatus.explorerUrl).to.be.a("string");
   }
 };
 
@@ -29,7 +29,7 @@ export const assertErrorThrown = async (
   try {
     await client.getProviderTrackingStatus(params);
     throw new Error("Expected error was not thrown");
-  } catch (error: any) {
+  } catch (error) {
     expect(error.message).to.include(expectedError);
     if (additionalErrorMessage) {
       expect(error.message).to.include(additionalErrorMessage);

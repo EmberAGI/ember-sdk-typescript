@@ -60,6 +60,8 @@ class SwapTokensTool extends StructuredTool {
   name = "swap_tokens";
   description = "Swap one token for another on a specific chain.";
   client: EmberClient;
+  // The types of these are incomprehensible and not that important for safety
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   publicClient: any;
   walletClient: any;
 
@@ -69,6 +71,7 @@ class SwapTokensTool extends StructuredTool {
     this.publicClient = publicClient;
     this.walletClient = walletClient;
   }
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   schema = z.object({
     chainId: z.string().describe("The chain ID where the swap will occur"),

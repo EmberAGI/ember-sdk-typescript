@@ -1,5 +1,8 @@
-import EmberClient, { OrderType, TransactionType } from "../src/index.js";
-import { createPublicClient, createWalletClient, http, parseEther } from "viem";
+import EmberClient, {
+  OrderType,
+  TransactionType,
+} from "@emberai/sdk-typescript";
+import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mainnet } from "viem/chains";
 
