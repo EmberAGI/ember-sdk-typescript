@@ -97,7 +97,7 @@ async function runCommand(
 process.chdir("onchain-actions");
 process.env.AAVE_RPC_URL = rpcUrl;
 await runCommand(
-  "docker compose -f compose.local.yaml up -d --wait",
+  "docker compose --progress=plain -f compose.local.yaml up -d --wait",
   "compose",
 );
 await runCommand("pnpm install", "install");
