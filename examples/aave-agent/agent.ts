@@ -41,7 +41,7 @@ export class Agent {
   > = {};
   private availableTokens: string[] = [];
   private functions: ChatCompletionCreateParams.Function[] = [];
-  private conversationHistory: ChatCompletionRequestMessage[] = [];
+  public conversationHistory: ChatCompletionRequestMessage[] = [];
   private openai: OpenAI;
   private rl: readline.Interface;
 
@@ -459,7 +459,7 @@ export class Agent {
           const underlyingUSD = entry.underlyingBalanceUsd
             ? formatNumeric(entry.underlyingBalanceUsd)
             : "N/A";
-          output += `- ${entry!.token!.symbol}: ${entry.underlyingBalance} (USD: ${underlyingUSD})\n`;
+          output += `- ${entry!.token!.name}: ${entry.underlyingBalance} (USD: ${underlyingUSD})\n`;
         }
       }
       output += "\nLoans:\n";
@@ -470,7 +470,7 @@ export class Agent {
           const totalBorrowsUSD = entry.totalBorrowsUsd
             ? formatNumeric(entry.totalBorrowsUsd)
             : "N/A";
-          output += `- ${entry.token!.symbol}: ${totalBorrows} (USD: ${totalBorrowsUSD})\n`;
+          output += `- ${entry.token!.name}: ${totalBorrows} (USD: ${totalBorrowsUSD})\n`;
         }
       }
       return output;
