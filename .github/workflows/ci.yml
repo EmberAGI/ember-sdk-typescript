@@ -55,7 +55,7 @@ jobs:
       - name: Initialize the environment file
         run: |
           cp .env.example .env
-          cp onchain-actions/.env.example onchain-actions/.env
+          cp onchain-actions/.env.template onchain-actions/.env
 
       - name: Launch anvil and dev server, keep running in background
         run: |
