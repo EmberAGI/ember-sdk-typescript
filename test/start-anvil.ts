@@ -118,4 +118,5 @@ console.log();
 console.log(`TEST_RPC_URL=${rpcUrl}`);
 console.log(`ANVIL_PORT=${instance.port}`);
 console.log();
+// DO NOT EDIT the line below, CI depends on it
 console.log("You can run integration tests now");
