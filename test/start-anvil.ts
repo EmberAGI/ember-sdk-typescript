@@ -100,14 +100,9 @@ await runCommand(
   "docker compose -f compose.local.yaml up -d --wait",
   "compose",
 );
-await runCommand("pnpm install --ignore-workspace", "install");
+await runCommand("pnpm install", "install");
 try {
-  await runCommand(
-    "pnpm run dev --ignore-workspace",
-    "dev",
-    {},
-    "service running",
-  );
+  await runCommand("pnpm run dev", "dev", {}, "service running");
 } catch (e) {
   console.error(e);
   throw new Error(
