@@ -47,10 +47,10 @@
     "access": "public"
   },
   "dependencies": {
-    "@bufbuild/protobuf": "^2.2.3",
-    "ethers": "^5.7.2"
+    "@bufbuild/protobuf": "^2.2.3"
   },
   "devDependencies": {
+    "ethers": "^5.7.2",
     "@eslint/js": "^9.18.0",
     "@grpc/grpc-js": "^1.12.5",
     "@grpc/proto-loader": "^0.7.13",
