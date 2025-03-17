@@ -1,7 +1,7 @@
 /// <reference types="mocha" />
 import { expect } from "chai";
 import { EmberClientConfig, EmberClient } from "@emberai/sdk-typescript";
-import EmberGrpcClient from "@emberai/sdk-typescript";
+import { EmberGrpcClient } from "@emberai/sdk-typescript";
 import { ProviderStatus } from "@emberai/sdk-typescript";
 import { TEST_CONSTANTS } from "./fixtures/constants";
 import {
