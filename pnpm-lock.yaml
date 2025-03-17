@@ -11,6 +11,9 @@ importers:
       '@bufbuild/protobuf':
         specifier: ^2.2.3
         version: 2.2.3
+      ethers:
+        specifier: ^5.7.2
+        version: 5.8.0
     devDependencies:
       '@eslint/js':
         specifier: ^9.18.0
