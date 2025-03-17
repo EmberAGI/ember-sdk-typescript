@@ -61,7 +61,7 @@ jobs:
 
       - name: Launch anvil and dev server, keep running in background
         run: |
-          pnpm run start:anvil > server_output.log 2>&1 &
+          pnpm run start:anvil 2>&1 | tee server_output.log &
           SERVER_PID=$!
 
           echo "Waiting for server to be ready..."
