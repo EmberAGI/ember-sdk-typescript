@@ -66,7 +66,7 @@ jobs:
 
           echo "Waiting for server to be ready..."
 
-          timeout=200
+          timeout=350
 
           until grep -q "You can run integration tests now" server_output.log || [ $timeout -le 0 ]; do
             sleep 1
