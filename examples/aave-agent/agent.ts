@@ -64,6 +64,10 @@ export class Agent {
     });
   }
 
+  async log () {
+    console.log(...arguments);
+  }
+
   async init() {
     // Set system instruction with our updated Ember SDK context.
     this.conversationHistory = [
@@ -73,7 +77,7 @@ export class Agent {
       },
     ];
 
-    console.log(
+    this.log(
       "Fetching lending and borrowing capabilities from Ember SDK...",
     );
 
@@ -97,7 +101,7 @@ export class Agent {
     lendingCapabilities.capabilities.forEach(processCapability);
 
     this.availableTokens = Object.keys(this.tokenMap);
-    console.log(
+    this.log(
       "Available tokens for lending and borrowing:",
       this.availableTokens,
     );
@@ -195,8 +199,12 @@ export class Agent {
 
   async start() {
     await this.init();
-    console.log("Agent started. Type your message below.");
+    this.log("Agent started. Type your message below.");
     this.promptUser();
+  }
+
+  async stop() {
+    this.rl.close();
   }
 
   promptUser() {
@@ -206,11 +214,12 @@ export class Agent {
     });
   }
 
-  async processUserInput(userInput: string) {
+  async processUserInput(userInput: string): Promise<ChatCompletionRequestMessage> {
     this.conversationHistory.push({ role: "user", content: userInput });
     const response = await this.callChatCompletion();
     response.content = response.content || "";
     await this.handleResponse(response as ChatCompletionRequestMessage);
+    return response as ChatCompletionRequestMessage;
   }
 
   async callChatCompletion() {
@@ -247,14 +256,14 @@ export class Agent {
         if (shouldFollowUp) {
           const followUp = await this.callChatCompletion();
           if (followUp && followUp.content) {
-            console.log("[assistant]:", followUp.content);
+            this.log("[assistant]:", followUp.content);
             this.conversationHistory.push({
               role: "assistant",
               content: followUp.content,
             });
           }
         } else {
-          console.log("[assistant]:", result);
+          this.log("[assistant]:", result);
         }
       } catch (e) {
         this.conversationHistory.push({
@@ -264,7 +273,7 @@ export class Agent {
         logError("handleResponse", e);
       }
     } else {
-      console.log("[assistant]:", message.content);
+      this.log("[assistant]:", message.content);
       this.conversationHistory.push({
         role: "assistant",
         content: message.content || "",
@@ -276,7 +285,7 @@ export class Agent {
     functionName: string,
     args: Record<string, unknown>,
   ): Promise<{ content: string; followUp: boolean }> {
-    console.log("tool:", functionName, args);
+    this.log("tool:", functionName, args);
     const withFollowUp = (content: string) => ({ content, followUp: true });
     const verbatim = (content: string) => ({ content, followUp: false });
     switch (functionName) {
@@ -313,7 +322,7 @@ export class Agent {
       const transactions = await actionFunction();
       for (const transaction of transactions) {
         const txHash = await this.signAndSendTransaction(transaction);
-        console.log("transaction sent:", txHash);
+        this.log("transaction sent:", txHash);
       }
       return `${actionName}: success!`;
     } catch (error: unknown) {
@@ -332,7 +341,7 @@ export class Agent {
     const tokenDetail = this.tokenMap[tokenName];
     if (!tokenDetail) throw new Error(`Token ${tokenName} not found.`);
 
-    console.log(
+    this.log(
       `Executing borrow: ${tokenName} (address: ${tokenDetail.address}), amount: ${amount}`,
     );
     return this.executeAction("borrow", async () => {
@@ -360,7 +369,7 @@ export class Agent {
     const tokenDetail = this.tokenMap[tokenName];
     if (!tokenDetail) throw new Error(`Token ${tokenName} not found.`);
 
-    console.log(
+    this.log(
       `Executing repay: ${tokenName} (address: ${tokenDetail.address}), amount: ${amount}`,
     );
     return this.executeAction("repay", async () => {
@@ -388,7 +397,7 @@ export class Agent {
     const tokenDetail = this.tokenMap[tokenName];
     if (!tokenDetail) throw new Error(`Token ${tokenName} not found.`);
 
-    console.log(
+    this.log(
       `Executing supply: ${tokenName} (address: ${tokenDetail.address}), amount: ${amount}`,
     );
     return this.executeAction("supply", async () => {
@@ -416,7 +425,7 @@ export class Agent {
     const tokenDetail = this.tokenMap[tokenName];
     if (!tokenDetail) throw new Error(`Token ${tokenName} not found.`);
 
-    console.log(
+    this.log(
       `Executing withdraw: ${tokenName} (address: ${tokenDetail.address}), amount: ${amount}`,
     );
     return this.executeAction("withdraw", async () => {
