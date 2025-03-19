@@ -11,16 +11,17 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm
 
-# Copy package files
-COPY package.json ./
+# Copy all necessary files
+COPY package.json pnpm-lock.yaml ./
+COPY scripts/ scripts/
+COPY src/ src/
+COPY tsconfig.json ./
 
-# Create empty pnpm-lock.yaml if it doesn't exist
-RUN touch pnpm-lock.yaml
+# Make scripts executable
+RUN chmod +x scripts/generate-proto.sh
 
 # Install dependencies
 RUN pnpm install
 
 # Add required dependencies
 RUN pnpm add -D long protobufjs
-
-# The source files will be mounted at runtime 

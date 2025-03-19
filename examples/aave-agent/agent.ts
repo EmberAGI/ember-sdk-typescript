@@ -2,6 +2,11 @@ import readline from "readline";
 import { ethers } from "ethers";
 import { OpenAI } from "openai";
 import { ChatCompletionCreateParams } from "openai/resources/index.mjs";
+import express from "express";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import cors from "cors";
+import { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 
 // Import Ember SDK
 import {
@@ -31,6 +36,7 @@ export class Agent {
   private client: EmberClient;
   private signer: ethers.Signer;
   private userAddress: string;
+  private activeTransports: Map<string, SSEServerTransport> = new Map();
   // Store both lending and borrowing capabilities for each token
   private tokenMap: Record<
     string,
@@ -95,6 +101,9 @@ export class Agent {
     };
 
     lendingCapabilities.capabilities.forEach(processCapability);
+
+    // Map to store active SSE transports (for multiple connections)
+    this.activeTransports = new Map();
 
     this.availableTokens = Object.keys(this.tokenMap);
     console.log(
@@ -211,6 +220,110 @@ export class Agent {
     const response = await this.callChatCompletion();
     response.content = response.content || "";
     await this.handleResponse(response as ChatCompletionRequestMessage);
+
+    // Extract final assistant response
+    const assistantMsg = this.conversationHistory.slice(-1)[0];
+    return assistantMsg?.content || 'No response generated';
+
+  }
+
+  /**
+ * startServer()
+ * Initializes and starts the MCP server with endpoints for SSE and user input handling.
+ */
+  startServer() {
+    try {
+      // Initialize the MCP server instance
+
+      const server = new McpServer({
+        name: "Aave Agent",
+        version: "1.0.0",
+      });
+
+      // Initialize Express app and middleware
+      const app = express();
+      this.init();
+      app.use(express.json());
+      app.use(cors());
+
+      // Map to store active SSE transports (using sessionId as the key)
+      this.activeTransports = new Map<string, SSEServerTransport>();
+
+      /**
+       * GET /sse
+       * SSE Endpoint for Real-Time Communication
+       * Establishes a Server-Sent Events (SSE) connection for real-time communication.
+       */
+      app.get("/sse", async (req, res) => {
+        // Set headers for SSE
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
+
+        // Create a new SSE transport
+        const transport = new SSEServerTransport(`/messages`, res);
+
+        // Store the transport in the activeTransports map
+        this.activeTransports.set(transport.sessionId, transport);
+
+        await server.connect(transport);
+      });
+
+      /**
+       * POST /messages
+       * Endpoint for Handling User Input
+       * Processes user input and sends the response over an active SSE connection.
+       */
+      app.post("/messages", async (req: express.Request, res: express.Response): Promise<any> => {
+        const sessionId = req.query.sessionId as string;
+
+        // Validate session ID
+        if (!sessionId) {
+          return res.status(400).send("Session ID is required");
+        }
+
+        // Retrieve the active SSE transport for the session
+        const transport = this.activeTransports.get(sessionId);
+        if (!transport) {
+          return res.status(404).send("No active SSE connection found for this session");
+        }
+
+        // Validate user input
+        const userInput = req.body.message;
+        if (!userInput) {
+          return res.status(400).send("Message is required");
+        }
+
+        try {
+          // Process the user input
+          const response = await this.processUserInput(userInput);
+
+          // Construct a valid JSON-RPC response
+          const validResponse: JSONRPCMessage = {
+            jsonrpc: "2.0",
+            id: sessionId,
+            result: {
+              data: response,
+            },
+          };
+
+          // Send the response over the SSE transport
+          await transport.send(validResponse);
+
+          res.status(200).send("Message received and processed");
+        } catch (error) {
+          // Log the error and return a 500 response
+          console.error(`Error processing message for session ${sessionId}:`, error);
+          res.status(500).send("Internal server error");
+        }
+      });
+
+      const PORT = 3001;
+      app.listen(PORT, () => console.log(`MCP Server running on port ${PORT}`));
+    } catch (error) {
+      // Log the error and return a 500 response
+      console.error("Error starting server:", error);
+    }
   }
 
   async callChatCompletion() {
