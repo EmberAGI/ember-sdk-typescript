@@ -1,7 +1,7 @@
 {
-  "name": "aave-agent-example",
+  "name": "camelot-agent-example",
   "version": "1.0.0",
-  "description": "Ember SDK AAVE Agent Example",
+  "description": "Camelot Agent example using Ember SDK",
   "type": "module",
   "main": "index.ts",
   "scripts": {

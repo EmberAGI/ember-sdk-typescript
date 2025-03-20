@@ -1,5 +1,5 @@
 {
-  "name": "ember-sdk-examples",
+  "name": "token-swap-example",
   "private": true,
   "type": "module",
   "dependencies": {

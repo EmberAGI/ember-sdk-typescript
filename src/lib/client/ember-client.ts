@@ -1,16 +1,30 @@
-import * as grpc from '@grpc/grpc-js';
 import {
+  credentials,
+  ClientOptions,
+  ServiceError,
+  Metadata,
+  CallOptions,
+} from "@grpc/grpc-js";
+import {
+  DataServiceClient,
+  WalletContextClient,
+  CreateTransactionClient,
+  TransactionExecutionClient,
+  // DataService types
   GetChainsRequest,
   GetChainsResponse,
   GetTokensRequest,
   GetTokensResponse,
+  GetCapabilitiesRequest,
+  GetCapabilitiesResponse,
+  // WalletContext types
+  GetWalletPositionsRequest,
+  GetWalletPositionsResponse,
+  GetUserLiquidityPositionsRequest,
+  GetUserLiquidityPositionsResponse,
+  // CreateTransaction types
   SwapTokensRequest,
   SwapTokensResponse,
-  GetProviderTrackingStatusRequest,
-  GetProviderTrackingStatusResponse,
-  DataServiceClient,
-  CreateTransactionClient,
-  TransactionExecutionClient,
   BorrowTokensRequest,
   BorrowTokensResponse,
   RepayTokensRequest,
@@ -19,173 +33,339 @@ import {
   SupplyTokensResponse,
   WithdrawTokensRequest,
   WithdrawTokensResponse,
-  GetWalletPositionsRequest,
-  GetWalletPositionsResponse,
-  WalletContextClient,
-  GetCapabilitiesRequest,
-  GetCapabilitiesResponse
-} from '../../generated/onchain_actions.js';
-import type { EmberClient, EmberClientConfig } from '../types/client.js';
+  SupplyLiquidityRequest,
+  SupplyLiquidityResponse,
+  WithdrawLiquidityRequest,
+  WithdrawLiquidityResponse,
+  GetLiquidityPoolsResponse,
+  // TransactionExecution types
+  GetProviderTrackingStatusRequest,
+  GetProviderTrackingStatusResponse,
+} from "../../generated/onchain-actions/onchain_actions";
 
-export class EmberGrpcClient implements EmberClient {
-  private readonly dataClient: DataServiceClient;
-  private readonly walletContextClient: WalletContextClient;
-  private readonly transactionClient: CreateTransactionClient;
-  private readonly executionClient: TransactionExecutionClient;
-  private readonly metadata: grpc.Metadata;
+export class EmberGrpcClient {
+  private dataServiceClient: DataServiceClient;
+  private walletContextClient: WalletContextClient;
+  private createTransactionClient: CreateTransactionClient;
+  private transactionExecutionClient: TransactionExecutionClient;
 
-  constructor(config: EmberClientConfig) {
-    const credentials = grpc.credentials.createInsecure(); // TODO: Add SSL support
-    
-    this.dataClient = new DataServiceClient(config.endpoint, credentials);
-    this.walletContextClient = new WalletContextClient(config.endpoint, credentials);
-    this.executionClient = new TransactionExecutionClient(config.endpoint, credentials);
-    // Transaction plan data may be greater than the default 4MB message size limit
-    const channelOptions: grpc.ChannelOptions = {
-      'grpc.max_receive_message_length': 8 * 1024 * 1024, // 8MB
-      'grpc.max_send_message_length': 8 * 1024 * 1024,    // 8MB
-    };
-    this.transactionClient = new CreateTransactionClient(config.endpoint, credentials, channelOptions);
-    
-    this.metadata = new grpc.Metadata();
-    if (config.apiKey) {
-      this.metadata.set('x-api-key', config.apiKey);
-    }
+  constructor(address: string, options?: Partial<ClientOptions>) {
+    // For simplicity we use insecure credentials.
+    const creds = credentials.createInsecure();
+    this.dataServiceClient = new DataServiceClient(address, creds, options);
+    this.walletContextClient = new WalletContextClient(address, creds, options);
+    this.createTransactionClient = new CreateTransactionClient(
+      address,
+      creds,
+      options,
+    );
+    this.transactionExecutionClient = new TransactionExecutionClient(
+      address,
+      creds,
+      options,
+    );
   }
 
-  async getChains(request: GetChainsRequest): Promise<GetChainsResponse> {
+  // DataService methods
+  getChains(
+    request: GetChainsRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<GetChainsResponse> {
     return new Promise((resolve, reject) => {
-      this.dataClient.getChains(
+      this.dataServiceClient.getChains(
         request,
-        this.metadata,
-        (error: Error | null, response: GetChainsResponse) => {
-          if (error) reject(error);
-          else resolve(response);
-        }
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: GetChainsResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
       );
     });
   }
 
-  async getTokens(request: GetTokensRequest): Promise<GetTokensResponse> {
+  getTokens(
+    request: GetTokensRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<GetTokensResponse> {
     return new Promise((resolve, reject) => {
-      this.dataClient.getTokens(
+      this.dataServiceClient.getTokens(
         request,
-        this.metadata,
-        (error: Error | null, response: GetTokensResponse) => {
-          if (error) reject(error);
-          else resolve(response);
-        }
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: GetTokensResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
       );
     });
   }
 
-  async getCapabilities(request: GetCapabilitiesRequest): Promise<GetCapabilitiesResponse> {
+  getCapabilities(
+    request: GetCapabilitiesRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<GetCapabilitiesResponse> {
     return new Promise((resolve, reject) => {
-      this.dataClient.getCapabilities(
+      this.dataServiceClient.getCapabilities(
         request,
-        this.metadata,
-        (error: Error | null, response: GetCapabilitiesResponse) => {
-          if (error) reject(error);
-          else resolve(response);
-        }
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: GetCapabilitiesResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
       );
     });
   }
 
-  async swapTokens(request: SwapTokensRequest): Promise<SwapTokensResponse> {
-    return new Promise((resolve, reject) => {
-      this.transactionClient.swapTokens(
-        request,
-        this.metadata,
-        (error: Error | null, response: SwapTokensResponse) => {
-          if (error) reject(error);
-          else resolve(response);
-        }
-      );
-    });
-  }
-
-  async getProviderTrackingStatus(request: GetProviderTrackingStatusRequest): Promise<GetProviderTrackingStatusResponse> {
-    return new Promise((resolve, reject) => {
-      this.executionClient.getProviderTrackingStatus(
-        request,
-        this.metadata,
-        (error: Error | null, response: GetProviderTrackingStatusResponse) => {
-          if (error) reject(error);
-          else resolve(response);
-        }
-      );
-    });
-  }
-
-  async borrowTokens(request: BorrowTokensRequest): Promise<BorrowTokensResponse> {
-    return new Promise((resolve, reject) => {
-      this.transactionClient.borrowTokens(
-        request,
-        this.metadata,
-        (error: Error | null, response: BorrowTokensResponse) => {
-          if (error) reject(error);
-          else resolve(response);
-        }
-      );
-    });
-  }
-
-  async repayTokens(request: RepayTokensRequest): Promise<RepayTokensResponse> {
-    return new Promise((resolve, reject) => {
-      this.transactionClient.repayTokens(
-        request,
-        this.metadata,
-        (error: Error | null, response: RepayTokensResponse) => {
-          if (error) reject(error);
-          else resolve(response);
-        }
-      );
-    });
-  }
-
-  async supplyTokens(request: SupplyTokensRequest): Promise<SupplyTokensResponse> {
-    return new Promise((resolve, reject) => {
-      this.transactionClient.supplyTokens(
-        request,
-        this.metadata,
-        (error: Error | null, response: SupplyTokensResponse) => {
-          if (error) reject(error);
-          else resolve(response);
-        }
-      );
-    });
-  }
-
-  async withdrawTokens(request: WithdrawTokensRequest): Promise<WithdrawTokensResponse> {
-    return new Promise((resolve, reject) => {
-      this.transactionClient.withdrawTokens(
-        request,
-        this.metadata,
-        (error: Error | null, response: WithdrawTokensResponse) => {
-          if (error) reject(error);
-          else resolve(response);
-        }
-      );
-    });
-  }
-
-  async getWalletPositions(request: GetWalletPositionsRequest): Promise<GetWalletPositionsResponse> {
+  // WalletContext method
+  getWalletPositions(
+    request: GetWalletPositionsRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<GetWalletPositionsResponse> {
     return new Promise((resolve, reject) => {
       this.walletContextClient.getWalletPositions(
         request,
-        this.metadata,
-        (error: Error | null, response: GetWalletPositionsResponse) => {
-          if (error) reject(error);
-          else resolve(response);
-        }
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: GetWalletPositionsResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
       );
     });
   }
 
-  close(): void {
-    this.dataClient.close();
-    this.transactionClient.close();
-    this.executionClient.close();
+  getUserLiquidityPositions(
+    request: GetUserLiquidityPositionsRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<GetUserLiquidityPositionsResponse> {
+    return new Promise((resolve, reject) => {
+      this.walletContextClient.getUserLiquidityPositions(
+        request,
+        metadata,
+        options || {},
+        (
+          err: ServiceError | null,
+          response?: GetUserLiquidityPositionsResponse,
+        ) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
   }
-} 
+
+  // CreateTransaction methods
+  swapTokens(
+    request: SwapTokensRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<SwapTokensResponse> {
+    return new Promise((resolve, reject) => {
+      this.createTransactionClient.swapTokens(
+        request,
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: SwapTokensResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
+  borrowTokens(
+    request: BorrowTokensRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<BorrowTokensResponse> {
+    return new Promise((resolve, reject) => {
+      this.createTransactionClient.borrowTokens(
+        request,
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: BorrowTokensResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
+  repayTokens(
+    request: RepayTokensRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<RepayTokensResponse> {
+    return new Promise((resolve, reject) => {
+      this.createTransactionClient.repayTokens(
+        request,
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: RepayTokensResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
+  supplyTokens(
+    request: SupplyTokensRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<SupplyTokensResponse> {
+    return new Promise((resolve, reject) => {
+      this.createTransactionClient.supplyTokens(
+        request,
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: SupplyTokensResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
+  withdrawTokens(
+    request: WithdrawTokensRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<WithdrawTokensResponse> {
+    return new Promise((resolve, reject) => {
+      this.createTransactionClient.withdrawTokens(
+        request,
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: WithdrawTokensResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
+  supplyLiquidity(
+    request: SupplyLiquidityRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<SupplyLiquidityResponse> {
+    return new Promise((resolve, reject) => {
+      this.createTransactionClient.supplyLiquidity(
+        request,
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: SupplyLiquidityResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
+  withdrawLiquidity(
+    request: WithdrawLiquidityRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<WithdrawLiquidityResponse> {
+    return new Promise((resolve, reject) => {
+      this.createTransactionClient.withdrawLiquidity(
+        request,
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: WithdrawLiquidityResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
+  getLiquidityPools(
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<GetLiquidityPoolsResponse> {
+    return new Promise((resolve, reject) => {
+      this.createTransactionClient.getLiquidityPools(
+        {},
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: GetLiquidityPoolsResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
+  // TransactionExecution method
+  getProviderTrackingStatus(
+    request: GetProviderTrackingStatusRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<GetProviderTrackingStatusResponse> {
+    return new Promise((resolve, reject) => {
+      this.transactionExecutionClient.getProviderTrackingStatus(
+        request,
+        metadata,
+        options || {},
+        (
+          err: ServiceError | null,
+          response?: GetProviderTrackingStatusResponse,
+        ) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+}

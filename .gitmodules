@@ -1,0 +1,3 @@
+[submodule "onchain-actions"]
+	path = onchain-actions
+	url = git@github.com:EmberAGI/onchain-actions.git
