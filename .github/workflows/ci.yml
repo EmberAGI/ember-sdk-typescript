@@ -9,6 +9,12 @@ on:
 jobs:
   continuous_integration:
     environment: dev
+    env:
+      ETH_RPC_URL: ${{ secrets.ETH_RPC_URL }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      MNEMONIC: ${{ secrets.MNEMONIC }}
+      SQUID_INTEGRATOR_ID: ${{ secrets.SQUID_INTEGRATOR_ID }}
+      COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the repo
@@ -28,14 +34,19 @@ jobs:
         with:
           version: 9
 
-      - name: Use Node.js 20
+      - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: "pnpm"
 
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
       - name: Install dependencies
-        run: pnpm i --frozen-lockfile
+        run: |
+          pnpm i --frozen-lockfile
+          pnpm --filter aave-agent-example install --frozen-lockfile
 
       - name: Build the package
         run: pnpm run build
@@ -43,11 +54,36 @@ jobs:
       - name: Check lint warnings
         run: pnpm lint:check
 
-  integration_testing:
-    runs-on: ubuntu-latest
-    environment: dev
-    steps:
-      - name: Checkout the repo
-        uses: actions/checkout@v4
+      - name: Initialize the environment file
+        run: |
+          cp .env.example .env
+          cp onchain-actions/.env.template onchain-actions/.env
 
-      # TODO: Add a steps to run the integration tests
+      - name: Launch anvil and dev server, keep running in background
+        run: |
+          pnpm run start:anvil 2>&1 | tee server_output.log &
+          SERVER_PID=$!
+
+          echo "Waiting for server to be ready..."
+
+          timeout=350
+
+          until grep -q "You can run integration tests now" server_output.log || [ $timeout -le 0 ]; do
+            sleep 1
+            timeout=$((timeout - 1))
+          done
+
+          if [ $timeout -le 0 ]; then
+            echo "Server did not start in time. Logs:"
+            cat server_output.log
+            kill $SERVER_PID
+            exit 1
+          fi
+
+      - name: Run integration tests
+        run: pnpm run test
+
+      - name: Kill anvil and the server
+        if: always()
+        run: |
+          kill $SERVER_PID || true
