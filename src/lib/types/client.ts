@@ -26,7 +26,7 @@ import type {
   GetLiquidityPoolsResponse,
   GetUserLiquidityPositionsRequest,
   GetUserLiquidityPositionsResponse,
-} from "../../generated/onchain-actions/onchain_actions.ts";
+} from "../../generated/onchain-actions/onchain_actions.js";
 
 export interface EmberClientConfig {
   /** gRPC endpoint URL */
