@@ -1,5 +1,5 @@
 {
-  "name": "ember-sdk-examples",
+  "name": "langchain-swap-example",
   "private": true,
   "type": "module",
   "dependencies": {

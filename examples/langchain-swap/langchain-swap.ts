@@ -2,16 +2,17 @@ import { ChatOpenAI } from "@langchain/openai";
 import { createOpenAIToolsAgent, AgentExecutor } from "langchain/agents";
 import { pull } from "langchain/hub";
 import { StructuredTool } from "@langchain/core/tools";
-import EmberClient, { OrderType, TransactionType } from '../src/index.js';
+import EmberClient, { OrderType, TransactionType } from "../src/index.js";
 import { z } from "zod";
-import { createPublicClient, createWalletClient, http } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import { mainnet } from 'viem/chains';
+import { createPublicClient, createWalletClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { mainnet } from "viem/chains";
 
 // Create tools for the Ember SDK operations
 class GetChainsTool extends StructuredTool {
   name = "get_chains";
-  description = "Get a list of supported blockchain chains. Returns information about available chains.";
+  description =
+    "Get a list of supported blockchain chains. Returns information about available chains.";
   client: EmberClient;
 
   constructor(client: EmberClient) {
@@ -22,8 +23,8 @@ class GetChainsTool extends StructuredTool {
   async _call() {
     const { chains } = await this.client.getChains({
       pageSize: 10,
-      filter: '',
-      pageToken: '',
+      filter: "",
+      pageToken: "",
     });
     return JSON.stringify(chains);
   }
@@ -31,7 +32,8 @@ class GetChainsTool extends StructuredTool {
 
 class GetTokensTool extends StructuredTool {
   name = "get_tokens";
-  description = "Get tokens available on a specific chain. Input should be a chain ID.";
+  description =
+    "Get tokens available on a specific chain. Input should be a chain ID.";
   client: EmberClient;
 
   constructor(client: EmberClient) {
@@ -47,8 +49,8 @@ class GetTokensTool extends StructuredTool {
     const { tokens } = await this.client.getTokens({
       chainId,
       pageSize: 100,
-      filter: '',
-      pageToken: '',
+      filter: "",
+      pageToken: "",
     });
     return JSON.stringify(tokens);
   }
@@ -58,6 +60,8 @@ class SwapTokensTool extends StructuredTool {
   name = "swap_tokens";
   description = "Swap one token for another on a specific chain.";
   client: EmberClient;
+  // The types of these are incomprehensible and not that important for safety
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   publicClient: any;
   walletClient: any;
 
@@ -67,16 +71,25 @@ class SwapTokensTool extends StructuredTool {
     this.publicClient = publicClient;
     this.walletClient = walletClient;
   }
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   schema = z.object({
     chainId: z.string().describe("The chain ID where the swap will occur"),
     baseTokenId: z.string().describe("The ID of the token you want to buy"),
     quoteTokenId: z.string().describe("The ID of the token you want to sell"),
     amount: z.string().describe("The amount to swap in the smallest unit"),
-    recipient: z.string().describe("The wallet address to receive the swapped tokens"),
+    recipient: z
+      .string()
+      .describe("The wallet address to receive the swapped tokens"),
   });
 
-  async _call({ chainId, baseTokenId, quoteTokenId, amount, recipient }: {
+  async _call({
+    chainId,
+    baseTokenId,
+    quoteTokenId,
+    amount,
+    recipient,
+  }: {
     chainId: string;
     baseTokenId: string;
     quoteTokenId: string;
@@ -99,12 +112,12 @@ class SwapTokensTool extends StructuredTool {
 
     // Check if we have a valid transaction plan
     if (!swap.transactionPlan) {
-      throw new Error('No transaction plan received');
+      throw new Error("No transaction plan received");
     }
 
     // Verify this is an EVM transaction
     if (swap.transactionPlan.type !== TransactionType.EVM_TX) {
-      throw new Error('Expected EVM transaction');
+      throw new Error("Expected EVM transaction");
     }
 
     // Get the latest gas estimate
@@ -112,31 +125,31 @@ class SwapTokensTool extends StructuredTool {
       account: recipient,
       to: swap.transactionPlan.to as `0x${string}`,
       data: swap.transactionPlan.data as `0x${string}`,
-      value: BigInt(swap.transactionPlan.value || '0'),
+      value: BigInt(swap.transactionPlan.value || "0"),
     });
 
     // Send the transaction
     const hash = await this.walletClient.sendTransaction({
       to: swap.transactionPlan.to as `0x${string}`,
       data: swap.transactionPlan.data as `0x${string}`,
-      value: BigInt(swap.transactionPlan.value || '0'),
+      value: BigInt(swap.transactionPlan.value || "0"),
       gas: gasEstimate,
     });
 
-    console.log('Transaction sent:', { hash });
+    console.log("Transaction sent:", { hash });
 
     // Create a clickable transaction link using provider tracking info
     if (swap.providerTracking?.explorerUrl) {
       const txLink = `${swap.providerTracking.explorerUrl}${hash}`;
-      console.log('View provider transaction status:', txLink);
+      console.log("View provider transaction status:", txLink);
     }
 
     // Wait for the transaction to be mined
     const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
-    console.log('Transaction confirmed:', {
+    console.log("Transaction confirmed:", {
       blockNumber: receipt.blockNumber,
       gasUsed: receipt.gasUsed.toString(),
-      status: receipt.status === 'success' ? 'success' : 'failed',
+      status: receipt.status === "success" ? "success" : "failed",
     });
 
     // Integrate provider tracking: use the swap's requestId and transaction hash to track swap status
@@ -146,9 +159,9 @@ class SwapTokensTool extends StructuredTool {
         requestId,
         transactionId: hash,
       });
-      console.log('Provider Tracking Status:', trackingStatus);
+      console.log("Provider Tracking Status:", trackingStatus);
     } else {
-      console.log('No requestId available for provider tracking.');
+      console.log("No requestId available for provider tracking.");
     }
 
     // Add provider tracking information and transaction details to the response
@@ -156,15 +169,17 @@ class SwapTokensTool extends StructuredTool {
       ...swap,
       transaction: {
         hash,
-        status: receipt.status === 'success' ? 'success' : 'failed',
+        status: receipt.status === "success" ? "success" : "failed",
         blockNumber: receipt.blockNumber,
         gasUsed: receipt.gasUsed.toString(),
       },
-      providerInfo: swap.providerTracking ? {
-        provider: swap.providerTracking.providerName,
-        requestId: swap.providerTracking.requestId,
-        explorerUrl: swap.providerTracking.explorerUrl,
-      } : undefined,
+      providerInfo: swap.providerTracking
+        ? {
+            provider: swap.providerTracking.providerName,
+            requestId: swap.providerTracking.requestId,
+            explorerUrl: swap.providerTracking.explorerUrl,
+          }
+        : undefined,
     };
 
     return JSON.stringify(response);
@@ -173,7 +188,8 @@ class SwapTokensTool extends StructuredTool {
 
 class GetProviderTrackingStatusTool extends StructuredTool {
   name = "get_provider_tracking_status";
-  description = "Get the status of a token swap from the provider using the requestId (from the swap response) and transactionId (transaction hash after submitting to blockchain).";
+  description =
+    "Get the status of a token swap from the provider using the requestId (from the swap response) and transactionId (transaction hash after submitting to blockchain).";
   client: EmberClient;
 
   constructor(client: EmberClient) {
@@ -182,11 +198,23 @@ class GetProviderTrackingStatusTool extends StructuredTool {
   }
 
   schema = z.object({
-    requestId: z.string().describe("The requestId received from the swap response"),
-    transactionId: z.string().describe("The transaction hash received after submitting the transaction to the blockchain"),
+    requestId: z
+      .string()
+      .describe("The requestId received from the swap response"),
+    transactionId: z
+      .string()
+      .describe(
+        "The transaction hash received after submitting the transaction to the blockchain",
+      ),
   });
 
-  async _call({ requestId, transactionId }: { requestId: string; transactionId: string }) {
+  async _call({
+    requestId,
+    transactionId,
+  }: {
+    requestId: string;
+    transactionId: string;
+  }) {
     const trackingStatus = await this.client.getProviderTrackingStatus({
       requestId,
       transactionId,
@@ -210,12 +238,12 @@ async function main() {
 
   // Initialize the Ember client
   const client = new EmberClient({
-    endpoint: 'grpc.api.emberai.xyz:50051',
+    endpoint: "grpc.api.emberai.xyz:50051",
     apiKey: process.env.EMBER_API_KEY,
   });
 
   // Initialize Ethereum clients
-  const transport = http(process.env.RPC_URL || 'https://eth.llamarpc.com');
+  const transport = http(process.env.RPC_URL || "https://eth.llamarpc.com");
   const publicClient = createPublicClient({
     chain: mainnet,
     transport,
@@ -258,16 +286,16 @@ async function main() {
 
     // Example: Execute a swap through the agent
     const result = await agentExecutor.invoke({
-      input: "I want to swap 1 WETH worth of USDC on Ethereum. First find the chain and tokens, then execute the swap.",
+      input:
+        "I want to swap 1 WETH worth of USDC on Ethereum. First find the chain and tokens, then execute the swap.",
     });
 
     console.log("Agent Response:", result.output);
-
   } catch (error) {
-    console.error('Error:', error);
+    console.error("Error:", error);
   } finally {
     client.close();
   }
 }
 
-main(); 
+main();

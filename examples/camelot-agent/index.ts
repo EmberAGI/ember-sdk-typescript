@@ -21,7 +21,7 @@ const main = async () => {
   const signer = wallet.connect(provider);
   const client = new EmberGrpcClient(endpoint);
   const agent = new Agent(client, signer, wallet.address);
-  agent.start();
+  await agent.start();
 };
 
 main();
