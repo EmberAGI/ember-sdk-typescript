@@ -41,9 +41,10 @@ import {
   // TransactionExecution types
   GetProviderTrackingStatusRequest,
   GetProviderTrackingStatusResponse,
-} from "../../generated/onchain-actions/onchain_actions";
+} from "../../generated/onchain-actions/onchain_actions.js";
+import { EmberClient } from "../types/client.js";
 
-export class EmberGrpcClient {
+export class EmberGrpcClient implements EmberClient {
   private dataServiceClient: DataServiceClient;
   private walletContextClient: WalletContextClient;
   private createTransactionClient: CreateTransactionClient;
@@ -64,6 +65,13 @@ export class EmberGrpcClient {
       creds,
       options,
     );
+  }
+
+  public close(): void {
+    this.dataServiceClient.close();
+    this.walletContextClient.close();
+    this.createTransactionClient.close();
+    this.transactionExecutionClient.close();
   }
 
   // DataService methods
