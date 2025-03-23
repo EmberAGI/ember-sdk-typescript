@@ -1,18 +1,21 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Create directories if they don't exist
-mkdir -p "src/generated"
+submodule_dir=onchain-actions
+
+pushd "$submodule_dir"
+pnpm --ignore-workspace install
+pnpm --ignore-workspace run genGrpc
+popd
 
 # Get the absolute path of the workspace
 WORKSPACE_DIR="$(pwd)"
+OUTPUT_DIR="${WORKSPACE_DIR}/src/generated"
 
-# Install protoc-gen-ts_proto if not already installed
-pnpm add -D ts-proto
+mkdir -p "$OUTPUT_DIR"
 
-# Generate TypeScript code using ts-proto
-protoc \
-    --plugin="./node_modules/.bin/protoc-gen-ts_proto" \
-    --ts_proto_out="${WORKSPACE_DIR}/src/generated" \
-    --ts_proto_opt=outputServices=grpc-js,env=node,useOptionals=messages,exportCommonSymbols=false,esModuleInterop=true,importSuffix=.js,outputClientImpl=grpc-js \
-    --proto_path="${WORKSPACE_DIR}/src/proto" \
-    "${WORKSPACE_DIR}/src/proto/"*.proto 
+# The parameters must be kept in sync with onchain-actions
+grpc_tools_node_protoc \
+    --plugin=protoc-gen-ts_proto=./node_modules/.bin/protoc-gen-ts_proto \
+    --ts_proto_out="$OUTPUT_DIR" \
+    --ts_proto_opt=stringEnums=true,outputServices=grpc-js,camelCase=true,useOptionalNullable=false,importSuffix=.js \
+    "$submodule_dir/"*.proto

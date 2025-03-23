@@ -3,7 +3,7 @@ import { ethers } from "ethers";
 import { OpenAI } from "openai";
 import { ChatCompletionCreateParams } from "openai/resources/index.mjs";
 
-// Import Ember SDK
+// Import types from Ember SDK
 import {
   EmberClient,
   TransactionPlan,
@@ -41,7 +41,7 @@ export class Agent {
   > = {};
   private availableTokens: string[] = [];
   private functions: ChatCompletionCreateParams.Function[] = [];
-  private conversationHistory: ChatCompletionRequestMessage[] = [];
+  public conversationHistory: ChatCompletionRequestMessage[] = [];
   private openai: OpenAI;
   private rl: readline.Interface;
 
@@ -64,6 +64,10 @@ export class Agent {
     });
   }
 
+  async log(...args) {
+    console.log(...args);
+  }
+
   async init() {
     // Set system instruction with our updated Ember SDK context.
     this.conversationHistory = [
@@ -73,9 +77,7 @@ export class Agent {
       },
     ];
 
-    console.log(
-      "Fetching lending and borrowing capabilities from Ember SDK...",
-    );
+    this.log("Fetching lending and borrowing capabilities from Ember SDK...");
 
     const lendingCapabilities = (await this.client.getCapabilities({
       type: CapabilityType.LENDING,
@@ -97,7 +99,7 @@ export class Agent {
     lendingCapabilities.capabilities.forEach(processCapability);
 
     this.availableTokens = Object.keys(this.tokenMap);
-    console.log(
+    this.log(
       "Available tokens for lending and borrowing:",
       this.availableTokens,
     );
@@ -195,8 +197,12 @@ export class Agent {
 
   async start() {
     await this.init();
-    console.log("Agent started. Type your message below.");
+    this.log("Agent started. Type your message below.");
     this.promptUser();
+  }
+
+  async stop() {
+    this.rl.close();
   }
 
   promptUser() {
@@ -206,11 +212,14 @@ export class Agent {
     });
   }
 
-  async processUserInput(userInput: string) {
+  async processUserInput(
+    userInput: string,
+  ): Promise<ChatCompletionRequestMessage> {
     this.conversationHistory.push({ role: "user", content: userInput });
     const response = await this.callChatCompletion();
     response.content = response.content || "";
     await this.handleResponse(response as ChatCompletionRequestMessage);
+    return response as ChatCompletionRequestMessage;
   }
 
   async callChatCompletion() {
@@ -247,24 +256,24 @@ export class Agent {
         if (shouldFollowUp) {
           const followUp = await this.callChatCompletion();
           if (followUp && followUp.content) {
-            console.log("[assistant]:", followUp.content);
+            this.log("[assistant]:", followUp.content);
             this.conversationHistory.push({
               role: "assistant",
               content: followUp.content,
             });
           }
         } else {
-          console.log("[assistant]:", result);
+          this.log("[assistant]:", result);
         }
       } catch (e) {
         this.conversationHistory.push({
           role: "assistant",
-          content: `${functionName} call error: ${e}`
+          content: `${functionName} call error: ${e}`,
         });
         logError("handleResponse", e);
       }
     } else {
-      console.log("[assistant]:", message.content);
+      this.log("[assistant]:", message.content);
       this.conversationHistory.push({
         role: "assistant",
         content: message.content || "",
@@ -276,7 +285,7 @@ export class Agent {
     functionName: string,
     args: Record<string, unknown>,
   ): Promise<{ content: string; followUp: boolean }> {
-    console.log('tool:', functionName, args);
+    this.log("tool:", functionName, args);
     const withFollowUp = (content: string) => ({ content, followUp: true });
     const verbatim = (content: string) => ({ content, followUp: false });
     switch (functionName) {
@@ -312,10 +321,8 @@ export class Agent {
     try {
       const transactions = await actionFunction();
       for (const transaction of transactions) {
-        const txHash = await this.signAndSendTransaction(
-          transaction
-        );
-        console.log("transaction sent:", txHash);
+        const txHash = await this.signAndSendTransaction(transaction);
+        this.log("transaction sent:", txHash);
       }
       return `${actionName}: success!`;
     } catch (error: unknown) {
@@ -334,7 +341,7 @@ export class Agent {
     const tokenDetail = this.tokenMap[tokenName];
     if (!tokenDetail) throw new Error(`Token ${tokenName} not found.`);
 
-    console.log(
+    this.log(
       `Executing borrow: ${tokenName} (address: ${tokenDetail.address}), amount: ${amount}`,
     );
     return this.executeAction("borrow", async () => {
@@ -362,7 +369,7 @@ export class Agent {
     const tokenDetail = this.tokenMap[tokenName];
     if (!tokenDetail) throw new Error(`Token ${tokenName} not found.`);
 
-    console.log(
+    this.log(
       `Executing repay: ${tokenName} (address: ${tokenDetail.address}), amount: ${amount}`,
     );
     return this.executeAction("repay", async () => {
@@ -390,7 +397,7 @@ export class Agent {
     const tokenDetail = this.tokenMap[tokenName];
     if (!tokenDetail) throw new Error(`Token ${tokenName} not found.`);
 
-    console.log(
+    this.log(
       `Executing supply: ${tokenName} (address: ${tokenDetail.address}), amount: ${amount}`,
     );
     return this.executeAction("supply", async () => {
@@ -418,7 +425,7 @@ export class Agent {
     const tokenDetail = this.tokenMap[tokenName];
     if (!tokenDetail) throw new Error(`Token ${tokenName} not found.`);
 
-    console.log(
+    this.log(
       `Executing withdraw: ${tokenName} (address: ${tokenDetail.address}), amount: ${amount}`,
     );
     return this.executeAction("withdraw", async () => {
@@ -438,7 +445,6 @@ export class Agent {
     });
   }
 
-
   private describeWalletPosition(position: WalletPosition): string {
     if (position.lendingPosition) {
       let output = "User Positions:\n";
@@ -453,7 +459,7 @@ export class Agent {
           const underlyingUSD = entry.underlyingBalanceUsd
             ? formatNumeric(entry.underlyingBalanceUsd)
             : "N/A";
-          output += `- ${entry!.token!.symbol}: ${entry.underlyingBalance} (USD: ${underlyingUSD})\n`;
+          output += `- ${entry!.token!.name}: ${entry.underlyingBalance} (USD: ${underlyingUSD})\n`;
         }
       }
       output += "\nLoans:\n";
@@ -464,17 +470,17 @@ export class Agent {
           const totalBorrowsUSD = entry.totalBorrowsUsd
             ? formatNumeric(entry.totalBorrowsUsd)
             : "N/A";
-          output += `- ${entry.token!.symbol}: ${totalBorrows} (USD: ${totalBorrowsUSD})\n`;
+          output += `- ${entry.token!.name}: ${totalBorrows} (USD: ${totalBorrowsUSD})\n`;
         }
       }
       return output;
     }
-    return '';
+    return "";
   }
 
   async toolGetUserPositions(): Promise<string> {
     try {
-      let res = '';
+      let res = "";
       const positionsResponse = (await this.client.getWalletPositions({
         walletAddress: this.userAddress,
       })) as GetWalletPositionsResponse;
@@ -509,9 +515,7 @@ export class Agent {
       from: this.userAddress,
     };
     await provider!.estimateGas(ethersTx);
-    const txResponse = await this.signer.sendTransaction(
-      ethersTx,
-    );
+    const txResponse = await this.signer.sendTransaction(ethersTx);
     await txResponse.wait();
     return txResponse.hash;
   }
