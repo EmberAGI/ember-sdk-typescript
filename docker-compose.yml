@@ -14,7 +14,7 @@ services:
       - TEST_ENV=${TEST_ENV}
       - EMBER_ENDPOINT=${EMBER_ENDPOINT}
       - EMBER_API_KEY=${EMBER_API_KEY}
-    
+
   proto:
     build: .
     volumes:
@@ -24,6 +24,25 @@ services:
     command: >
       sh -c "pnpm install && pnpm run generate-proto"
 
+  aave-agent:
+    build:
+      context: ./examples/aave-agent
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./examples/aave-agent:/app
+      - pnpm-store:/root/.local/share/pnpm/store
+      - node_modules:/examples/aave-agent/node_modules
+    env_file:
+      - ./examples/aave-agent/.env # Use the separate .env file
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - EMBER_ENDPOINT=${EMBER_ENDPOINT}
+      - RPC_URL=${RPC_URL}
+
+    command: npm start
+
 volumes:
   node_modules:
-  pnpm-store: 
+  pnpm-store:
