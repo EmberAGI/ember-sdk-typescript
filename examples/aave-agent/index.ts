@@ -47,125 +47,15 @@ const initializeAgent = async (): Promise<void> => {
  * Adds tools to the MCP server.
  */
 server.tool(
-  "borrow",
+  "chat",
   {
-    tokenName: z.string(),
-    amount: z.string(),
+    userInput: z.string(),
   },
-  async ({ tokenName, amount }: { tokenName: string; amount: string }) => {
+  async ({ userInput }: { userInput: string }) => {
     try {
-      const result = await agent.toolBorrow({ tokenName, amount });
-      console.log(result, "borrow");
-
+      const result = await agent.processUserInput(userInput);
       return {
-        content: [{ type: "text", text: String(result) }],
-      };
-    } catch (error: unknown) {
-      const err = error as Error;
-      return {
-        content: [{ type: "text", text: `Error: ${err.message}` }],
-      };
-    }
-  }
-);
-
-server.tool(
-  "repay",
-  {
-    tokenName: z.string(),
-    amount: z.string(),
-  },
-  async ({ tokenName, amount }: { tokenName: string; amount: string }) => {
-    try {
-      const result = await agent.toolRepay({ tokenName, amount });
-      console.log(result, "repay");
-
-      return {
-        content: [{ type: "text", text: result }],
-      };
-    } catch (error: unknown) {
-      const err = error as Error;
-      return {
-        content: [{ type: "text", text: `Error: ${err.message}` }],
-      };
-    }
-  }
-);
-
-server.tool(
-  "supply",
-  {
-    tokenName: z.string(),
-    amount: z.string(),
-  },
-  async ({ tokenName, amount }: { tokenName: string; amount: string }) => {
-    try {
-      const result = await agent.toolSupply({ tokenName, amount });
-      console.log(result, "supply");
-
-      return {
-        content: [{ type: "text", text: result }],
-      };
-    } catch (error: unknown) {
-      const err = error as Error;
-      return {
-        content: [{ type: "text", text: `Error: ${err.message}` }],
-      };
-    }
-  }
-);
-
-server.tool(
-  "withdraw",
-  {
-    tokenName: z.string(),
-    amount: z.string(),
-  },
-  async ({ tokenName, amount }: { tokenName: string; amount: string }) => {
-    try {
-      const result = await agent.toolWithdraw({ tokenName, amount });
-      console.log(result, "withdraw");
-
-      return {
-        content: [{ type: "text", text: result }],
-      };
-    } catch (error: unknown) {
-      const err = error as Error;
-      return {
-        content: [{ type: "text", text: `Error: ${err.message}` }],
-      };
-    }
-  }
-);
-
-server.tool(
-  "getUserPositions",
-  {},
-  async () => {
-    try {
-      const result = await agent.toolGetUserPositions();
-      console.log(result, "getUserPositions");
-      return {
-        content: [{ type: "text", text: result }],
-      };
-    } catch (error: unknown) {
-      const err = error as Error;
-      return {
-        content: [{ type: "text", text: `Error: ${err.message}` }],
-      };
-    }
-  }
-);
-
-server.tool(
-  "getAvailableTokens",
-  {},
-  async () => {
-    try {
-      const result = await agent.toolGetAvailableTokens();
-      console.log(result, "getAvailableTokens");
-      return {
-        content: [{ type: "text", text: result }],
+        content: [{ type: "text", text: String(result.content) }],
       };
     } catch (error: unknown) {
       const err = error as Error;
@@ -194,11 +84,7 @@ app.get("/", (req, res) => {
       "/messages": "POST endpoint for MCP messages",
     },
     tools: [
-      { name: "borrow", description: "Borrow tokens using Ember SDK" },
-      { name: "repay", description: "Repay borrowed tokens using Ember SDK" },
-      { name: "supply", description: "Supply tokens using Ember SDK" },
-      { name: "withdraw", description: "Withdraw supplied tokens using Ember SDK" },
-      { name: "getUserPositions", description: "Get user wallet positions" },
+      { name: "chat", description: "execute lendiing and borrowing tools using Ember SDK" },
     ],
   });
 });
