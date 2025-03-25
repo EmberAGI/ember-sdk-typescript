@@ -8,6 +8,7 @@ import {
   TokenIdentifier,
   TransactionPlan,
 } from "@emberai/sdk-typescript";
+import { ChatCompletionMessage } from "openai/resources";
 
 const GAS_LIMIT_BUFFER = 20; // percentage
 const FEE_BUFFER = 10; // percentage, applies to maxFeePerGas and maxPriorityFeePerGas
@@ -185,7 +186,11 @@ Rules:
     this.conversationHistory.push({ role: "user", content: userInput });
     const response = await this.callChatCompletion();
     response.content = response.content || "";
-    await this.handleResponse(response as ChatCompletionRequestMessage);
+    const followUp: ChatCompletionMessage | undefined =
+      await this.handleResponse(response as ChatCompletionRequestMessage);
+    if (typeof followUp !== "undefined") {
+      return followUp as ChatCompletionRequestMessage;
+    }
     return response as ChatCompletionRequestMessage;
   }
 
@@ -199,7 +204,9 @@ Rules:
     return response.choices[0].message;
   }
 
-  async handleResponse(message: ChatCompletionRequestMessage | undefined) {
+  async handleResponse(
+    message: ChatCompletionRequestMessage | undefined,
+  ): Promise<ChatCompletionMessage | undefined> {
     if (!message) return;
     if (message.function_call) {
       const functionName = message.function_call.name;
@@ -228,6 +235,7 @@ Rules:
               role: "assistant",
               content: followUp.content,
             });
+            return followUp;
           }
         } else {
           this.log("[assistant]:", result);
