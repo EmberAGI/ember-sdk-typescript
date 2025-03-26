@@ -72,10 +72,8 @@ describe("Integration tests for Algebra (Camelot) on mainnet", function () {
 
   it("close all positions", async () => {
     while (true) {
-      const response = await agent.processUserInput(
-        "Show current positions"
-      );
-      if (response.content.includes('No liquidity positions found')) {
+      const response = await agent.processUserInput("Show current positions");
+      if (response.content.includes("No liquidity positions found")) {
         break;
       }
       await agent.processUserInput("Close the last position");
@@ -89,14 +87,12 @@ describe("Integration tests for Algebra (Camelot) on mainnet", function () {
     );
     const price = parseFloat(priceStr.content);
     const usdcBalanceBefore = await usdc.balanceOf(wallet.address);
-    console.log('before', usdcBalanceBefore.toString());
     const targetUSDCAmount = 1;
     const depositResponse = await agent.processUserInput(
-      `Deposit ${targetUSDCAmount} USDC and ${(targetUSDCAmount/price).toFixed(6)} ETH within the range from ${(price * 0.8).toFixed(6)} to ${(price * 1.3).toFixed(6)}`,
+      `Deposit ${targetUSDCAmount} USDC and ${(targetUSDCAmount / price).toFixed(6)} ETH within the range from ${(price * 0.8).toFixed(6)} to ${(price * 1.3).toFixed(6)}`,
     );
     assert.include(depositResponse.content.toLowerCase(), "done");
     const usdcBalanceAfter = await usdc.balanceOf(wallet.address);
-    console.log('after', usdcBalanceAfter.toString());
     assert(
       usdcBalanceBefore.sub(usdcBalanceAfter).gt(0),
       "USDC balance decreased",
@@ -109,9 +105,7 @@ describe("Integration tests for Algebra (Camelot) on mainnet", function () {
 
   it("should be able to list positions", async () => {
     await new Promise((resolve) => setTimeout(resolve, 10_000));
-    const response = await agent.processUserInput(
-      "Show current positions"
-    );
+    const response = await agent.processUserInput("Show current positions");
     assert.include(response.content, "WETH/USDC");
   });
 

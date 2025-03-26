@@ -9,7 +9,6 @@ import { AnvilOptions } from "@viem/anvil";
 dotenv.config();
 
 export const startEnv = async (useAnvil: bool) => {
-
   const originalRpcUrl = process.env.ETH_RPC_URL;
   if (!originalRpcUrl) throw new Error("No ETH_RPC_URL provided");
 
@@ -26,9 +25,13 @@ export const startEnv = async (useAnvil: bool) => {
     };
 
     if (process.env.TEST_ANVIL_FORK_BLOCK_NUMBER) {
-      anvilSpec.forkBlockNumber = parseInt(process.env.TEST_ANVIL_FORK_BLOCK_NUMBER)
+      anvilSpec.forkBlockNumber = parseInt(
+        process.env.TEST_ANVIL_FORK_BLOCK_NUMBER,
+      );
     } else {
-      console.info('TEST_ANVIL_FORK_BLOCK_NUMBER not provided, starting from the latest block');
+      console.info(
+        "TEST_ANVIL_FORK_BLOCK_NUMBER not provided, starting from the latest block",
+      );
     }
 
     const pool = definePool({
@@ -85,11 +88,13 @@ export const startEnv = async (useAnvil: bool) => {
   // DO NOT EDIT the line below, CI depends on it
   // useAnvil flag purposefully breaks the logic, to ensure we never accidentally
   // run real chain tests in CI.
-  console.log(`You can run ${useAnvil ? "" : "mainnet "} integration tests now`);
+  console.log(
+    `You can run ${useAnvil ? "" : "mainnet "} integration tests now`,
+  );
   console.log();
   if (useAnvil) {
-    console.log('pnpm run test');
+    console.log("pnpm run test");
   } else {
-    console.log('pnpm run test:mainnet');
+    console.log("pnpm run test:mainnet");
   }
-}
+};

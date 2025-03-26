@@ -185,8 +185,9 @@ Rules:
     this.conversationHistory.push({ role: "user", content: userInput });
     const response = await this.callChatCompletion();
     response.content = response.content || "";
-    const followUp: { content: string } | undefined =
-      await this.handleResponse(response as ChatCompletionRequestMessage);
+    const followUp: { content: string } | undefined = await this.handleResponse(
+      response as ChatCompletionRequestMessage,
+    );
     if (typeof followUp !== "undefined") {
       return followUp as ChatCompletionRequestMessage;
     }
@@ -238,7 +239,7 @@ Rules:
           }
         } else {
           this.log("[assistant]:", result);
-          return { content: result }
+          return { content: result };
         }
       } catch (e) {
         this.conversationHistory.push({

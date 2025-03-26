@@ -91,7 +91,7 @@ describe("Integration tests for Algebra (Camelot)", function () {
     const usdcBalanceBefore = await usdc.balanceOf(wallet.address);
     const targetUSDCAmount = 100;
     const depositResponse = await agent.processUserInput(
-      `Deposit ${targetUSDCAmount} USDC and ${(targetUSDCAmount/price).toFixed(6)} ETH within the range from ${(price * 0.8).toFixed(6)} to ${(price * 1.3).toFixed(6)}`,
+      `Deposit ${targetUSDCAmount} USDC and ${(targetUSDCAmount / price).toFixed(6)} ETH within the range from ${(price * 0.8).toFixed(6)} to ${(price * 1.3).toFixed(6)}`,
     );
     assert.include(depositResponse.content.toLowerCase(), "done");
     const usdcBalanceAfter = await usdc.balanceOf(wallet.address);
@@ -105,8 +105,6 @@ describe("Integration tests for Algebra (Camelot)", function () {
   //https://github.com/EmberAGI/ember-sdk-typescript/issues/23
   // but we still check for exceptions
   it("should be able to list positions", async () => {
-    const _response = await agent.processUserInput(
-      "Show current positions"
-    );
+    const _response = await agent.processUserInput("Show current positions");
   });
 });
