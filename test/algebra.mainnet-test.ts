@@ -5,12 +5,11 @@ import { ethers } from "ethers";
 import { EmberClient, EmberGrpcClient } from "@emberai/sdk-typescript";
 import { Agent } from "../examples/camelot-agent/agent";
 import { ensureWethBalance } from "./helpers/weth";
-import { mintUSDC } from "./helpers/mint-usdc";
 import { ERC20Wrapper } from "./helpers/erc20";
 
 dotenv.config();
 
-describe("Integration tests for Algebra (Camelot)", function () {
+describe("Integration tests for Algebra (Camelot) on mainnet", function () {
   this.timeout(50_000);
 
   let wallet: ethers.Wallet;
@@ -36,9 +35,9 @@ describe("Integration tests for Algebra (Camelot)", function () {
   let usdc: ERC20Wrapper;
 
   this.beforeAll(async () => {
-    const rpcUrl = process.env.TEST_RPC_URL;
+    const rpcUrl = process.env.ETH_RPC_URL;
     if (!rpcUrl) {
-      throw new Error("TEST_RPC_URL not found in the environment.");
+      throw new Error("ETH_RPC_URL not found in the environment.");
     }
     try {
       provider = new ethers.providers.JsonRpcProvider(rpcUrl);
@@ -46,7 +45,7 @@ describe("Integration tests for Algebra (Camelot)", function () {
     } catch (e) {
       console.error(e);
       throw new Error(
-        "Failed to connect, did you run `pnpm run start:anvil` first?",
+        "Failed to connect, did you run `pnpm run start:mainnet` first?",
       );
     }
     wallet = ethers.Wallet.fromMnemonic(mnemonic);
@@ -56,15 +55,9 @@ describe("Integration tests for Algebra (Camelot)", function () {
     // Mute logs
     agent.log = async () => {};
     await agent.init();
-    await ensureWethBalance(signer, "1", wethAddress);
+    await ensureWethBalance(signer, "0.0005", wethAddress);
 
     const USDC_CA = "0xaf88d065e77c8cc2239327c5edb3a432268e5831";
-    await mintUSDC({
-      provider,
-      tokenAddress: USDC_CA,
-      userAddress: signer.address,
-      balanceStr: (1000_000_000).toString(),
-    });
     usdc = new ERC20Wrapper(provider, USDC_CA);
   });
 
@@ -77,6 +70,18 @@ describe("Integration tests for Algebra (Camelot)", function () {
     expect(response.content.toLowerCase()).to.contain("liquidity");
   });
 
+  it("close all positions", async () => {
+    while (true) {
+      const response = await agent.processUserInput(
+        "Show current positions"
+      );
+      if (response.content.includes('No liquidity positions found')) {
+        break;
+      }
+      await agent.processUserInput("Close the last position");
+    }
+  });
+
   it("should be able to deposit liquidity", async () => {
     await agent.processUserInput("list liquidity pools");
     const priceStr = await agent.processUserInput(
@@ -84,24 +89,33 @@ describe("Integration tests for Algebra (Camelot)", function () {
     );
     const price = parseFloat(priceStr.content);
     const usdcBalanceBefore = await usdc.balanceOf(wallet.address);
-    const targetUSDCAmount = 100;
+    console.log('before', usdcBalanceBefore.toString());
+    const targetUSDCAmount = 1;
     const depositResponse = await agent.processUserInput(
       `Deposit ${targetUSDCAmount} USDC and ${(targetUSDCAmount/price).toFixed(6)} ETH within the range from ${(price * 0.8).toFixed(6)} to ${(price * 1.3).toFixed(6)}`,
     );
     assert.include(depositResponse.content.toLowerCase(), "done");
     const usdcBalanceAfter = await usdc.balanceOf(wallet.address);
+    console.log('after', usdcBalanceAfter.toString());
     assert(
       usdcBalanceBefore.sub(usdcBalanceAfter).gt(0),
       "USDC balance decreased",
     );
+    console.log(
+      'consumed USDC:',
+      usdcBalanceBefore.sub(usdcBalanceAfter).div(1000000).toString()
+    );
   });
 
-  // We know that the newly created position does not appear due to
-  //https://github.com/EmberAGI/ember-sdk-typescript/issues/23
-  // but we still check for exceptions
   it("should be able to list positions", async () => {
-    const _response = await agent.processUserInput(
+    await new Promise((resolve) => setTimeout(resolve, 10_000));
+    const response = await agent.processUserInput(
       "Show current positions"
     );
+    assert.include(response.content, "WETH/USDC");
+  });
+
+  it("close the position", async () => {
+    await agent.processUserInput("Close the last position");
   });
 });

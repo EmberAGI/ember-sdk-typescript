@@ -30,7 +30,6 @@ export async function ensureWethBalance(
   if (balance.lt(requiredAmountBN)) {
     const difference = requiredAmountBN.sub(balance);
     const tx = await weth.deposit({ value: difference });
-    console.log("wrapping some ETH into WETH", tx.hash);
     await tx.wait();
   }
 }
