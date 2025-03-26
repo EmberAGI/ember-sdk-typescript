@@ -77,6 +77,11 @@ describe("Integration tests for Algebra (Camelot)", function () {
     expect(response.content.toLowerCase()).to.contain("liquidity");
   });
 
+  it("should be able to list pools", async () => {
+    const response = await agent.processUserInput("list pools");
+    expect(response.content).to.contain("Liquidity pools");
+  });
+
   it("should be able to deposit liquidity", async () => {
     await agent.processUserInput("list liquidity pools");
     const priceStr = await agent.processUserInput(
