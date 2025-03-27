@@ -25,7 +25,7 @@
     "test": "mocha --require tsx 'test/**/*.test.ts'",
     "test:mainnet": "mocha --require tsx 'test/**/*.mainnet-test.ts'",
     "lint:fix": "prettier --write --log-level silent src/ test/ examples/ && eslint --fix src/ test/ examples/",
-    "lint:check": "tsc --noEmit && prettier --check --log-level silent src/ test/ examples/ && eslint src/ test/ examples/",
+    "lint:check": "tsc --noEmit && prettier --check src/ test/ examples/ && eslint src/ test/ examples/",
     "lint:require-submodule": "./scripts/require-submodule.sh",
     "generate-proto": "pnpm run lint:require-submodule && ./scripts/generate-proto.sh",
     "agent:aave": "npx tsx examples/aave-agent/index.ts",

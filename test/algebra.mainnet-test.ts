@@ -98,8 +98,8 @@ describe("Integration tests for Algebra (Camelot) on mainnet", function () {
       "USDC balance decreased",
     );
     console.log(
-      'consumed USDC:',
-      usdcBalanceBefore.sub(usdcBalanceAfter).div(1000000).toString()
+      "consumed USDC:",
+      usdcBalanceBefore.sub(usdcBalanceAfter).div(1000000).toString(),
     );
   });
 
