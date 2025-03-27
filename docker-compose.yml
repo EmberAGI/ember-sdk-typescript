@@ -42,6 +42,22 @@ services:
       - RPC_URL=${RPC_URL}
 
     command: npm start
+  mcp-sse-client:
+    build:
+      context: ./examples/mcp-sse-client
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./examples/mcp-sse-client:/app
+      - pnpm-store:/root/.local/share/pnpm/store
+      - node_modules:/examples/mcp-sse-client/node_modules
+    env_file:
+      - ./examples/mcp-sse-client/.env # Use the separate .env file
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+    command: npm start
 
 volumes:
   node_modules:

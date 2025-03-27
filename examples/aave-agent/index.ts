@@ -37,7 +37,7 @@ const initializeAgent = async (): Promise<void> => {
 
   const provider = new ethers.providers.JsonRpcProvider(rpc);
   const signer = wallet.connect(provider);
-  const client = new EmberGrpcClient({ endpoint });
+  const client = new EmberGrpcClient(endpoint);
   agent = new Agent(client, signer, wallet.address);
   await agent.init();
 };
@@ -47,15 +47,128 @@ const initializeAgent = async (): Promise<void> => {
  * Adds tools to the MCP server.
  */
 server.tool(
-  "chat",
+  "borrow",
   {
-    userInput: z.string(),
+    tokenName: z.string(),
+    amount: z.string(),
   },
-  async ({ userInput }: { userInput: string }) => {
+  async ({ tokenName, amount }: { tokenName: string; amount: string }) => {
     try {
-      const result = await agent.processUserInput(userInput);
+      console.log(tokenName, amount, "borrow");
+      const result = await agent.toolBorrow({ tokenName, amount });
+      console.log(result, "borrow");
+
       return {
-        content: [{ type: "text", text: String(result.content) }],
+        content: [{ type: "text", text: String(result) }],
+      };
+    } catch (error: unknown) {
+      const err = error as Error;
+      return {
+        content: [{ type: "text", text: `Error: ${err.message}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "repay",
+  {
+    tokenName: z.string(),
+    amount: z.string(),
+  },
+  async ({ tokenName, amount }: { tokenName: string; amount: string }) => {
+    console.log(tokenName, amount, "repay");
+    try {
+      const result = await agent.toolRepay({ tokenName, amount });
+      console.log(result, "repay");
+
+      return {
+        content: [{ type: "text", text: result }],
+      };
+    } catch (error: unknown) {
+      const err = error as Error;
+      return {
+        content: [{ type: "text", text: `Error: ${err.message}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "supply",
+  {
+    tokenName: z.string(),
+    amount: z.string(),
+  },
+  async ({ tokenName, amount }: { tokenName: string; amount: string }) => {
+    try {
+      console.log(tokenName, amount, "supply");
+      const result = await agent.toolSupply({ tokenName, amount });
+      console.log(result, "supply");
+
+      return {
+        content: [{ type: "text", text: result }],
+      };
+    } catch (error: unknown) {
+      const err = error as Error;
+      return {
+        content: [{ type: "text", text: `Error: ${err.message}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "withdraw",
+  {
+    tokenName: z.string(),
+    amount: z.string(),
+  },
+  async ({ tokenName, amount }: { tokenName: string; amount: string }) => {
+    try {
+      console.log("withdraw11111111111111");
+      const result = await agent.toolWithdraw({ tokenName, amount });
+      console.log(result, "withdraw");
+
+      return {
+        content: [{ type: "text", text: result }],
+      };
+    } catch (error: unknown) {
+      const err = error as Error;
+      return {
+        content: [{ type: "text", text: `Error: ${err.message}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "getUserPositions",
+  {},
+  async () => {
+    try {
+      const result = await agent.toolGetUserPositions();
+      console.log(result, "getUserPositions");
+      return {
+        content: [{ type: "text", text: result }],
+      };
+    } catch (error: unknown) {
+      const err = error as Error;
+      return {
+        content: [{ type: "text", text: `Error: ${err.message}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "getAvailableTokens",
+  {},
+  async () => {
+    try {
+      const result = await agent.toolGetAvailableTokens();
+      return {
+        content: [{ type: "text", text: result }],
       };
     } catch (error: unknown) {
       const err = error as Error;
