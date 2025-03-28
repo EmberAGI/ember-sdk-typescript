@@ -88,9 +88,7 @@ export const startEnv = async (useAnvil: bool) => {
   // DO NOT EDIT the line below, CI depends on it
   // useAnvil flag purposefully breaks the logic, to ensure we never accidentally
   // run real chain tests in CI.
-  console.log(
-    `You can run ${useAnvil ? "" : "mainnet "} integration tests now`,
-  );
+  console.log(`You can run ${useAnvil ? "" : "mainnet "}integration tests now`);
   console.log();
   if (useAnvil) {
     console.log("pnpm run test");
