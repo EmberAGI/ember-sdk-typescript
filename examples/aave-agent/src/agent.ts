@@ -1,7 +1,7 @@
 import readline from "readline";
 import { ethers } from "ethers";
 import { OpenAI } from "openai";
-import { ChatCompletionCreateParams } from "openai/resources/index.mjs";
+import { ChatCompletionCreateParams, ChatCompletionMessage } from "openai/resources/index.mjs";
 
 // Import types from Ember SDK
 import {
@@ -64,7 +64,7 @@ export class Agent {
     });
   }
 
-  async log(...args) {
+  async log(...args: unknown[]) {
     console.log(...args);
   }
 
@@ -214,12 +214,14 @@ export class Agent {
 
   async processUserInput(
     userInput: string,
-  ): Promise<ChatCompletionRequestMessage> {
+  ): Promise<ChatCompletionMessage> {
     this.conversationHistory.push({ role: "user", content: userInput });
     const response = await this.callChatCompletion();
     response.content = response.content || "";
-    await this.handleResponse(response as ChatCompletionRequestMessage);
-    return response as ChatCompletionRequestMessage;
+
+    console.log("[agent.processUserInput] response", response);
+
+    return await this.handleResponse(response as ChatCompletionRequestMessage);
   }
 
   async callChatCompletion() {
@@ -232,8 +234,13 @@ export class Agent {
     return response.choices[0].message;
   }
 
-  async handleResponse(message: ChatCompletionRequestMessage | undefined) {
-    if (!message) return;
+  async handleResponse(message: ChatCompletionRequestMessage | undefined): Promise<ChatCompletionMessage> {
+    const response: ChatCompletionMessage = {
+      role: "assistant",
+      content: "Sorry, Dave, I can't do that.",
+      refusal: null,
+    };
+    if (!message) return response;
     if (message.function_call) {
       const functionName = message.function_call.name;
       const argsString = message.function_call.arguments;
@@ -256,29 +263,39 @@ export class Agent {
         if (shouldFollowUp) {
           const followUp = await this.callChatCompletion();
           if (followUp && followUp.content) {
+            response.content = followUp.content;
             this.log("[assistant]:", followUp.content);
             this.conversationHistory.push({
               role: "assistant",
               content: followUp.content,
             });
+            return response;
           }
         } else {
+          response.content = result;
           this.log("[assistant]:", result);
+          return response;
         }
       } catch (e) {
+        const errorMessage = `${functionName} call error: ${e}`;
+        response.content = errorMessage;
         this.conversationHistory.push({
           role: "assistant",
-          content: `${functionName} call error: ${e}`,
+          content: errorMessage,
         });
         logError("handleResponse", e);
+        return response;
       }
     } else {
       this.log("[assistant]:", message.content);
+      response.content = message.content || "";
       this.conversationHistory.push({
         role: "assistant",
         content: message.content || "",
       });
+      return response;
     }
+    return response;
   }
 
   async handleToolCall(
@@ -308,7 +325,8 @@ export class Agent {
           ),
         );
       case "getUserPositions":
-        return verbatim(await this.toolGetUserPositions());
+        //return verbatim(await this.toolGetUserPositions());
+        return verbatim("test");
       default:
         return withFollowUp(`Unknown function: ${functionName}`);
     }

@@ -37,7 +37,7 @@ const initializeAgent = async (): Promise<void> => {
 
   const provider = new ethers.providers.JsonRpcProvider(rpc);
   const signer = wallet.connect(provider);
-  const client = new EmberGrpcClient({ endpoint });
+  const client = new EmberGrpcClient(endpoint);
   agent = new Agent(client, signer, wallet.address);
   await agent.init();
 };
@@ -54,6 +54,9 @@ server.tool(
   async ({ userInput }: { userInput: string }) => {
     try {
       const result = await agent.processUserInput(userInput);
+
+      console.log("[server.tool] result", result);
+
       return {
         content: [{ type: "text", text: String(result.content) }],
       };
@@ -73,7 +76,7 @@ const app = express();
 app.use(cors());
 
 // Add a simple root route handler
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   res.json({
     name: "MCP SSE Agent Server",
     version: "1.0.0",
@@ -89,12 +92,42 @@ app.get("/", (req, res) => {
   });
 });
 
+// Store active SSE connections
+const sseConnections = new Set();
+
 let transport: SSEServerTransport
 
 // SSE endpoint
-app.get("/sse", async (req, res) => {
+app.get("/sse", async (_req, res) => {
   transport = new SSEServerTransport("/messages", res);
   await server.connect(transport);
+
+  // Add connection to active set
+  sseConnections.add(res);
+
+  // Setup keepalive interval
+  const keepaliveInterval = setInterval(() => {
+    if (res.writableEnded) {
+      clearInterval(keepaliveInterval);
+      return;
+    }
+    res.write(':keepalive\n\n');
+  }, 30000); // Send keepalive every 30 seconds
+
+  // Handle client disconnect
+  _req.on('close', () => {
+    clearInterval(keepaliveInterval);
+    sseConnections.delete(res);
+    transport.close?.();
+  });
+
+  // Handle errors
+  res.on('error', (err) => {
+    console.error('SSE Error:', err);
+    clearInterval(keepaliveInterval);
+    sseConnections.delete(res);
+    transport.close?.();
+  });
 });
 
 app.post("/messages", async (req, res) => {
