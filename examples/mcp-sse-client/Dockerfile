@@ -14,7 +14,7 @@ COPY package.json pnpm-lock.yaml* ./
 RUN pnpm install
 
 # Copy source code
-COPY src/ ./src/
+COPY ../ ./
 COPY tsconfig.json ./
 
 # Build TypeScript code
@@ -24,7 +24,7 @@ RUN pnpm exec tsc
 FROM node:20-slim AS production
 
 # Create a non-root user
-RUN apt-get update && apt-get install -y --no-install-recommends dumb-init curl && \
+RUN apt-get update && apt-get install -y --no-install-recommends dumb-init && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd -r ember && useradd -r -g ember ember
@@ -50,11 +50,14 @@ COPY .env* ./
 # Change ownership to non-root user
 RUN chown -R ember:ember /app
 
+RUN npm link
+
 # Switch to non-root user
 USER ember
 
-# Expose port for SSE MCP server
-EXPOSE 3001
+# Expose port for SSE MCP client
+EXPOSE 3002
+
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]

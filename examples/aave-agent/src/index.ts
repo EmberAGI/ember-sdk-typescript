@@ -10,6 +10,8 @@ import { z } from "zod";
 
 dotenv.config();
 
+let isReady = false;
+
 // Initialize the MCP server
 const server = new McpServer({
   name: "mcp-sse-agent-server",
@@ -24,8 +26,8 @@ const endpoint = process.env.EMBER_ENDPOINT || "grpc.api.emberai.xyz:50051";
 let agent: Agent;
 
 /**
- * Initializes the Agent instance.
- */
+* Initializes the Agent instance.
+*/
 const initializeAgent = async (): Promise<void> => {
   const mnemonic = process.env.MNEMONIC;
   if (!mnemonic) {
@@ -40,25 +42,128 @@ const initializeAgent = async (): Promise<void> => {
   const client = new EmberGrpcClient(endpoint);
   agent = new Agent(client, signer, wallet.address);
   await agent.init();
+  isReady = true;
+  console.log("Agent initialized successfully");
 };
 
 
 /**
- * Adds tools to the MCP server.
- */
+* Adds tools to the MCP server.
+*/
 server.tool(
-  "chat",
+  "borrow",
   {
-    userInput: z.string(),
+    tokenName: z.string(),
+    amount: z.string(),
   },
-  async ({ userInput }: { userInput: string }) => {
+  async ({ tokenName, amount }: { tokenName: string; amount: string }) => {
     try {
-      const result = await agent.processUserInput(userInput);
-
-      console.log("[server.tool] result", result);
+      const result = await agent.toolBorrow({ tokenName, amount });
 
       return {
-        content: [{ type: "text", text: String(result.content) }],
+        content: [{ type: "text", text: String(result) }],
+      };
+    } catch (error: unknown) {
+      const err = error as Error;
+      return {
+        content: [{ type: "text", text: `Error: ${err.message}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "repay",
+  {
+    tokenName: z.string(),
+    amount: z.string(),
+  },
+  async ({ tokenName, amount }: { tokenName: string; amount: string }) => {
+    try {
+      const result = await agent.toolRepay({ tokenName, amount });
+
+      return {
+        content: [{ type: "text", text: result }],
+      };
+    } catch (error: unknown) {
+      const err = error as Error;
+      return {
+        content: [{ type: "text", text: `Error: ${err.message}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "supply",
+  {
+    tokenName: z.string(),
+    amount: z.string(),
+  },
+  async ({ tokenName, amount }: { tokenName: string; amount: string }) => {
+    try {
+      const result = await agent.toolSupply({ tokenName, amount });
+
+      return {
+        content: [{ type: "text", text: result }],
+      };
+    } catch (error: unknown) {
+      const err = error as Error;
+      return {
+        content: [{ type: "text", text: `Error: ${err.message}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "withdraw",
+  {
+    tokenName: z.string(),
+    amount: z.string(),
+  },
+  async ({ tokenName, amount }: { tokenName: string; amount: string }) => {
+    try {
+      const result = await agent.toolWithdraw({ tokenName, amount });
+
+      return {
+        content: [{ type: "text", text: result }],
+      };
+    } catch (error: unknown) {
+      const err = error as Error;
+      return {
+        content: [{ type: "text", text: `Error: ${err.message}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "getUserPositions",
+  {},
+  async () => {
+    try {
+      const result = await agent.toolGetUserPositions();
+      return {
+        content: [{ type: "text", text: result }],
+      };
+    } catch (error: unknown) {
+      const err = error as Error;
+      return {
+        content: [{ type: "text", text: `Error: ${err.message}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "getAvailableTokens",
+  {},
+  async () => {
+    try {
+      const result = await agent.toolGetAvailableTokens();
+      return {
+        content: [{ type: "text", text: result }],
       };
     } catch (error: unknown) {
       const err = error as Error;
@@ -91,6 +196,16 @@ app.get("/", (_req, res) => {
     ],
   });
 });
+
+
+// endpoint to check server health
+app.get("/health", (_req, res) => {
+  if (!isReady) {
+    res.status(503).json({ status: "starting" });
+  }
+  res.status(200).json({ status: "ok" });
+});
+
 
 // Store active SSE connections
 const sseConnections = new Set();

@@ -513,6 +513,18 @@ export class Agent {
     }
   }
 
+  async toolGetAvailableTokens(): Promise<string> {
+    try {
+      let availableTokens = this.availableTokens.join(", ");
+      return `Available tokens: ${availableTokens}`;
+    } catch (error: unknown) {
+      const err = error as Error;
+      logError("Error in availableTokens:", err);
+      throw new Error(`Error in availableTokens: ${err.message}`);
+    }
+  }
+
+
   async signAndSendTransaction(tx: TransactionPlan): Promise<string> {
     const provider = this.signer.provider;
     const ethersTx: ethers.PopulatedTransaction = {
