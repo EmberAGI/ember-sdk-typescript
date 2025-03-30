@@ -2,6 +2,9 @@ import readline from "readline";
 import { ethers } from "ethers";
 import { OpenAI } from "openai";
 import { ChatCompletionCreateParams, ChatCompletionMessage } from "openai/resources/index.mjs";
+import { promises as fs } from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 // Import types from Ember SDK
 import {
@@ -13,6 +16,10 @@ import {
   GetWalletPositionsResponse,
   WalletPosition,
 } from "@emberai/sdk-typescript";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const CACHE_FILE_PATH = path.join(__dirname, ".cache", "lending_capabilities.json");
 
 function logError(...args: unknown[]) {
   console.error(...args);
@@ -77,11 +84,34 @@ export class Agent {
       },
     ];
 
-    this.log("Fetching lending and borrowing capabilities from Ember SDK...");
+    let lendingCapabilities: GetCapabilitiesResponse;
+    const useCache = process.env.AGENT_DEBUG === 'true';
 
-    const lendingCapabilities = (await this.client.getCapabilities({
-      type: CapabilityType.LENDING,
-    })) as GetCapabilitiesResponse;
+    if (useCache) {
+      try {
+        // Try to read from cache first
+        await fs.mkdir(path.dirname(CACHE_FILE_PATH), { recursive: true });
+        const cacheData = await fs.readFile(CACHE_FILE_PATH, 'utf8');
+        lendingCapabilities = JSON.parse(cacheData);
+        this.log("Using cached lending capabilities (AGENT_DEBUG=true)");
+      } catch (_error) {
+        // If cache doesn't exist or is invalid, fetch from API
+        this.log("Cache miss or invalid (AGENT_DEBUG=true). Fetching lending and borrowing capabilities from Ember SDK...");
+        lendingCapabilities = await this.client.getCapabilities({
+          type: CapabilityType.LENDING,
+        }) as GetCapabilitiesResponse;
+        
+        // Save to cache only if using cache
+        await fs.writeFile(CACHE_FILE_PATH, JSON.stringify(lendingCapabilities, null, 2));
+        this.log("Saved capabilities to cache.");
+      }
+    } else {
+      // Fetch directly from API if not using cache
+      this.log("Fetching lending and borrowing capabilities from Ember SDK (AGENT_DEBUG is not 'true')...");
+      lendingCapabilities = await this.client.getCapabilities({
+        type: CapabilityType.LENDING,
+      }) as GetCapabilitiesResponse;
+    }
 
     // Process capabilities and build tokenMap
     const processCapability = (capability: Capability) => {
@@ -215,12 +245,10 @@ export class Agent {
   async processUserInput(
     userInput: string,
   ): Promise<ChatCompletionMessage> {
+    console.log("[agent.processUserInput] userInput", userInput);
     this.conversationHistory.push({ role: "user", content: userInput });
     const response = await this.callChatCompletion();
     response.content = response.content || "";
-
-    console.log("[agent.processUserInput] response", response);
-
     return await this.handleResponse(response as ChatCompletionRequestMessage);
   }
 
@@ -325,8 +353,7 @@ export class Agent {
           ),
         );
       case "getUserPositions":
-        //return verbatim(await this.toolGetUserPositions());
-        return verbatim("test");
+        return verbatim(await this.toolGetUserPositions());
       default:
         return withFollowUp(`Unknown function: ${functionName}`);
     }
