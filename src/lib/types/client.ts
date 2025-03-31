@@ -26,7 +26,7 @@ import type {
   GetLiquidityPoolsResponse,
   GetUserLiquidityPositionsRequest,
   GetUserLiquidityPositionsResponse,
-} from "../../generated/onchain-actions/onchain_actions.js";
+} from "../../generated/onchain_actions/types.gen.ts";
 
 export interface EmberClientConfig {
   /** gRPC endpoint URL */
@@ -76,7 +76,4 @@ export interface EmberClient {
   getWalletPositions(
     request: GetWalletPositionsRequest,
   ): Promise<GetWalletPositionsResponse>;
-
-  /** Close the client connection */
-  close(): void;
 }

@@ -9,9 +9,9 @@ import {
   TransactionPlan,
   GetCapabilitiesResponse,
   Capability,
-  CapabilityType,
   GetWalletPositionsResponse,
   WalletPosition,
+  LendingCapability,
 } from "@emberai/sdk-typescript";
 
 function logError(...args: unknown[]) {
@@ -64,7 +64,7 @@ export class Agent {
     });
   }
 
-  async log(...args) {
+  async log(...args: unknown[]) {
     console.log(...args);
   }
 
@@ -80,13 +80,13 @@ export class Agent {
     this.log("Fetching lending and borrowing capabilities from Ember SDK...");
 
     const lendingCapabilities = (await this.client.getCapabilities({
-      type: CapabilityType.LENDING,
+      type: "LENDING",
     })) as GetCapabilitiesResponse;
 
     // Process capabilities and build tokenMap
     const processCapability = (capability: Capability) => {
-      if (capability.lendingCapability) {
-        const token = capability.lendingCapability.underlyingToken!;
+      if (Object.hasOwnProperty.call(capability, "underlyingToken")) {
+        const token = (capability as LendingCapability).underlyingToken!;
         if (!this.tokenMap[token.name]) {
           this.tokenMap[token.name] = {
             chainId: token.tokenUid!.chainId,
@@ -407,7 +407,7 @@ export class Agent {
           address: tokenDetail.address,
         },
         amount: amount,
-        supplierWalletAddress: this.userAddress,
+        walletAddress: this.userAddress,
       });
       if (response.error || !response.transactions)
         throw new Error(

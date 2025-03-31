@@ -1,7 +1,7 @@
 import { Agent } from "./agent";
 import { ethers } from "ethers";
 import * as dotenv from "dotenv";
-import { EmberGrpcClient } from "@emberai/sdk-typescript";
+import { EmberHttpClient } from "@emberai/sdk-typescript";
 
 dotenv.config();
 
@@ -19,7 +19,7 @@ const main = async () => {
 
   const provider = new ethers.providers.JsonRpcProvider(rpc);
   const signer = wallet.connect(provider);
-  const client = new EmberGrpcClient(endpoint);
+  const client = new EmberHttpClient(endpoint);
   const agent = new Agent(client, signer, wallet.address);
   await agent.start();
 };

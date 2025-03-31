@@ -2,8 +2,9 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "types": ["mocha", "chai", "node"],
-    "noEmit": true
+    "noEmit": true,
+    "rootDir": "./"
   },
-  "include": ["src/**/*", "test/**/*"],
+  "include": ["src", "examples", "test"],
   "exclude": ["node_modules", "dist"]
-} 
+}

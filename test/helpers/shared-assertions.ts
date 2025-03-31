@@ -30,9 +30,9 @@ export const assertErrorThrown = async (
     await client.getProviderTrackingStatus(params);
     throw new Error("Expected error was not thrown");
   } catch (error) {
-    expect(error.message).to.include(expectedError);
+    expect((error as Error).message).to.include(expectedError);
     if (additionalErrorMessage) {
-      expect(error.message).to.include(additionalErrorMessage);
+      expect((error as Error).message).to.include(additionalErrorMessage);
     }
   }
 };

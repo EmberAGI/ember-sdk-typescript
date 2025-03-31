@@ -1,17 +1,11 @@
-import EmberClient, {
-  OrderType,
-  TransactionType,
-} from "@emberai/sdk-typescript";
+import EmberClient from "@emberai/sdk-typescript";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mainnet } from "viem/chains";
 
 async function main() {
   // Initialize the client
-  const client = new EmberClient({
-    endpoint: "grpc.api.emberai.xyz:50051",
-    apiKey: process.env.EMBER_API_KEY,
-  });
+  const client = new EmberClient("grpc.api.emberai.xyz:50051");
 
   // Initialize Ethereum clients
   const transport = http(process.env.RPC_URL || "https://eth.llamarpc.com");
@@ -32,9 +26,7 @@ async function main() {
     // Get tokens on Ethereum
     const { tokens } = await client.getTokens({
       chainId: "1", // Ethereum
-      pageSize: 100,
       filter: "",
-      pageToken: "",
     });
 
     // Find USDC and WETH tokens
@@ -47,14 +39,14 @@ async function main() {
 
     // Create a swap request to buy 1 WETH with USDC
     const swap = await client.swapTokens({
-      orderType: OrderType.MARKET_BUY,
+      orderType: "MARKET_BUY",
       baseToken: {
         chainId: "1", // Ethereum
-        address: weth.tokenId,
+        address: weth.tokenUid.address,
       },
       quoteToken: {
         chainId: "1", // Ethereum
-        address: usdc.tokenId,
+        address: usdc.tokenUid.address,
       },
       // Amount in smallest unit (1 WETH = 1e18 wei)
       amount: "1000000000000000000",
@@ -76,7 +68,7 @@ async function main() {
     }
 
     // Verify this is an EVM transaction
-    if (swap.transactionPlan.type !== TransactionType.EVM_TX) {
+    if (swap.transactionPlan.type !== "EVM_TX") {
       throw new Error("Expected EVM transaction");
     }
 
@@ -125,9 +117,6 @@ async function main() {
     }
   } catch (error) {
     console.error("Error:", error);
-  } finally {
-    // Always close the client when done
-    client.close();
   }
 }
 

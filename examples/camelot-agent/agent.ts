@@ -5,7 +5,7 @@ import { ChatCompletionCreateParams } from "openai/resources/index.mjs";
 import { EmberClient } from "@emberai/sdk-typescript";
 import {
   LiquidityPosition,
-  TokenIdentifier,
+  TokenUid,
   TransactionPlan,
 } from "@emberai/sdk-typescript";
 
@@ -23,8 +23,8 @@ type ChatCompletionRequestMessage = {
 
 type LiquidityPair = {
   handle: string; // e.g. WETH/USDC
-  token0: TokenIdentifier;
-  token1: TokenIdentifier;
+  token0: TokenUid;
+  token1: TokenUid;
 };
 
 export class Agent {
@@ -321,7 +321,7 @@ Rules:
         await this.client.withdrawLiquidity({
           tokenId: position.tokenId,
           providerId: position.providerId,
-          supplierAddress: this.userAddress,
+          walletAddress: this.userAddress,
         })
       ).transactions;
     });
@@ -348,7 +348,7 @@ Rules:
 
   async toolGetUserLiquidityPositions(): Promise<string> {
     const { positions } = await this.client.getUserLiquidityPositions({
-      supplierAddress: this.userAddress,
+      walletAddress: this.userAddress,
     });
 
     if (positions.length === 0) return "No liquidity positions found.";
@@ -388,7 +388,7 @@ Rules:
             minPrice: priceFrom,
             maxPrice: priceTo,
           },
-          supplierAddress: this.userAddress,
+          walletAddress: this.userAddress,
         })
       ).transactions;
     });

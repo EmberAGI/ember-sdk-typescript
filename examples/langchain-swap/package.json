@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@emberai/sdk-typescript": "workspace:*",
+    "@langchain/core": "^0.3.43",
     "@langchain/openai": "^0.0.14",
     "langchain": "^0.1.21",
     "viem": "^2.7.9",

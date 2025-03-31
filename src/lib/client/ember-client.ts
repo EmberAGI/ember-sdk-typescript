@@ -1,28 +1,14 @@
 import {
-  credentials,
-  ClientOptions,
-  ServiceError,
-  Metadata,
-  CallOptions,
-} from "@grpc/grpc-js";
-import {
-  DataServiceClient,
-  WalletContextClient,
-  CreateTransactionClient,
-  TransactionExecutionClient,
-  // DataService types
   GetChainsRequest,
   GetChainsResponse,
   GetTokensRequest,
   GetTokensResponse,
   GetCapabilitiesRequest,
   GetCapabilitiesResponse,
-  // WalletContext types
   GetWalletPositionsRequest,
   GetWalletPositionsResponse,
   GetUserLiquidityPositionsRequest,
   GetUserLiquidityPositionsResponse,
-  // CreateTransaction types
   SwapTokensRequest,
   SwapTokensResponse,
   BorrowTokensRequest,
@@ -38,342 +24,153 @@ import {
   WithdrawLiquidityRequest,
   WithdrawLiquidityResponse,
   GetLiquidityPoolsResponse,
-  // TransactionExecution types
   GetProviderTrackingStatusRequest,
   GetProviderTrackingStatusResponse,
-} from "../../generated/onchain-actions/onchain_actions.js";
-import { EmberClient } from "../types/client.js";
+  ClientOptions,
+} from "../../generated/onchain_actions";
 
-export class EmberGrpcClient implements EmberClient {
-  private dataServiceClient: DataServiceClient;
-  private walletContextClient: WalletContextClient;
-  private createTransactionClient: CreateTransactionClient;
-  private transactionExecutionClient: TransactionExecutionClient;
+/**
+ * EmberClient provides methods to interact with the On-chain Actions API.
+ */
+export class EmberHttpClient {
+  private baseUrl: string;
+  private options: ClientOptions;
 
-  constructor(address: string, options?: Partial<ClientOptions>) {
-    // For simplicity we use insecure credentials.
-    const creds = credentials.createInsecure();
-    this.dataServiceClient = new DataServiceClient(address, creds, options);
-    this.walletContextClient = new WalletContextClient(address, creds, options);
-    this.createTransactionClient = new CreateTransactionClient(
-      address,
-      creds,
-      options,
-    );
-    this.transactionExecutionClient = new TransactionExecutionClient(
-      address,
-      creds,
-      options,
-    );
+  constructor(baseUrl: string, options?: Partial<ClientOptions>) {
+    // In this HTTP implementation, the address is the base URL.
+    this.baseUrl = baseUrl;
+    this.options = { baseUrl, ...options };
   }
 
-  public close(): void {
-    this.dataServiceClient.close();
-    this.walletContextClient.close();
-    this.createTransactionClient.close();
-    this.transactionExecutionClient.close();
+  private async post<TRequest, TResponse>(
+    url: string,
+    body: TRequest,
+  ): Promise<TResponse> {
+    const response = await fetch(`${this.baseUrl}${url}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+    }
+    return (await response.json()) as TResponse;
   }
 
   // DataService methods
-  getChains(
-    request: GetChainsRequest,
-    metadata: Metadata = new Metadata(),
-    options?: Partial<CallOptions>,
-  ): Promise<GetChainsResponse> {
-    return new Promise((resolve, reject) => {
-      this.dataServiceClient.getChains(
-        request,
-        metadata,
-        options || {},
-        (err: ServiceError | null, response?: GetChainsResponse) => {
-          if (err || !response) {
-            reject(err);
-          } else {
-            resolve(response);
-          }
-        },
-      );
-    });
+  getChains(request: GetChainsRequest): Promise<GetChainsResponse> {
+    return this.post<GetChainsRequest, GetChainsResponse>(
+      "/data/getChains",
+      request,
+    );
   }
 
-  getTokens(
-    request: GetTokensRequest,
-    metadata: Metadata = new Metadata(),
-    options?: Partial<CallOptions>,
-  ): Promise<GetTokensResponse> {
-    return new Promise((resolve, reject) => {
-      this.dataServiceClient.getTokens(
-        request,
-        metadata,
-        options || {},
-        (err: ServiceError | null, response?: GetTokensResponse) => {
-          if (err || !response) {
-            reject(err);
-          } else {
-            resolve(response);
-          }
-        },
-      );
-    });
+  getTokens(request: GetTokensRequest): Promise<GetTokensResponse> {
+    return this.post<GetTokensRequest, GetTokensResponse>(
+      "/data/getTokens",
+      request,
+    );
   }
 
   getCapabilities(
     request: GetCapabilitiesRequest,
-    metadata: Metadata = new Metadata(),
-    options?: Partial<CallOptions>,
   ): Promise<GetCapabilitiesResponse> {
-    return new Promise((resolve, reject) => {
-      this.dataServiceClient.getCapabilities(
-        request,
-        metadata,
-        options || {},
-        (err: ServiceError | null, response?: GetCapabilitiesResponse) => {
-          if (err || !response) {
-            reject(err);
-          } else {
-            resolve(response);
-          }
-        },
-      );
-    });
+    return this.post<GetCapabilitiesRequest, GetCapabilitiesResponse>(
+      "/data/getCapabilities",
+      request,
+    );
   }
 
-  // WalletContext method
+  // WalletContext methods
   getWalletPositions(
     request: GetWalletPositionsRequest,
-    metadata: Metadata = new Metadata(),
-    options?: Partial<CallOptions>,
   ): Promise<GetWalletPositionsResponse> {
-    return new Promise((resolve, reject) => {
-      this.walletContextClient.getWalletPositions(
-        request,
-        metadata,
-        options || {},
-        (err: ServiceError | null, response?: GetWalletPositionsResponse) => {
-          if (err || !response) {
-            reject(err);
-          } else {
-            resolve(response);
-          }
-        },
-      );
-    });
+    return this.post<GetWalletPositionsRequest, GetWalletPositionsResponse>(
+      "/wallet/getWalletPositions",
+      request,
+    );
   }
 
   getUserLiquidityPositions(
     request: GetUserLiquidityPositionsRequest,
-    metadata: Metadata = new Metadata(),
-    options?: Partial<CallOptions>,
   ): Promise<GetUserLiquidityPositionsResponse> {
-    return new Promise((resolve, reject) => {
-      this.walletContextClient.getUserLiquidityPositions(
-        request,
-        metadata,
-        options || {},
-        (
-          err: ServiceError | null,
-          response?: GetUserLiquidityPositionsResponse,
-        ) => {
-          if (err || !response) {
-            reject(err);
-          } else {
-            resolve(response);
-          }
-        },
-      );
-    });
+    return this.post<
+      GetUserLiquidityPositionsRequest,
+      GetUserLiquidityPositionsResponse
+    >("/wallet/getUserLiquidityPositions", request);
   }
 
   // CreateTransaction methods
-  swapTokens(
-    request: SwapTokensRequest,
-    metadata: Metadata = new Metadata(),
-    options?: Partial<CallOptions>,
-  ): Promise<SwapTokensResponse> {
-    return new Promise((resolve, reject) => {
-      this.createTransactionClient.swapTokens(
-        request,
-        metadata,
-        options || {},
-        (err: ServiceError | null, response?: SwapTokensResponse) => {
-          if (err || !response) {
-            reject(err);
-          } else {
-            resolve(response);
-          }
-        },
-      );
-    });
+  swapTokens(request: SwapTokensRequest): Promise<SwapTokensResponse> {
+    return this.post<SwapTokensRequest, SwapTokensResponse>(
+      "/transaction/swapTokens",
+      request,
+    );
   }
 
-  borrowTokens(
-    request: BorrowTokensRequest,
-    metadata: Metadata = new Metadata(),
-    options?: Partial<CallOptions>,
-  ): Promise<BorrowTokensResponse> {
-    return new Promise((resolve, reject) => {
-      this.createTransactionClient.borrowTokens(
-        request,
-        metadata,
-        options || {},
-        (err: ServiceError | null, response?: BorrowTokensResponse) => {
-          if (err || !response) {
-            reject(err);
-          } else {
-            resolve(response);
-          }
-        },
-      );
-    });
+  borrowTokens(request: BorrowTokensRequest): Promise<BorrowTokensResponse> {
+    return this.post<BorrowTokensRequest, BorrowTokensResponse>(
+      "/transaction/borrowTokens",
+      request,
+    );
   }
 
-  repayTokens(
-    request: RepayTokensRequest,
-    metadata: Metadata = new Metadata(),
-    options?: Partial<CallOptions>,
-  ): Promise<RepayTokensResponse> {
-    return new Promise((resolve, reject) => {
-      this.createTransactionClient.repayTokens(
-        request,
-        metadata,
-        options || {},
-        (err: ServiceError | null, response?: RepayTokensResponse) => {
-          if (err || !response) {
-            reject(err);
-          } else {
-            resolve(response);
-          }
-        },
-      );
-    });
+  repayTokens(request: RepayTokensRequest): Promise<RepayTokensResponse> {
+    return this.post<RepayTokensRequest, RepayTokensResponse>(
+      "/transaction/repayTokens",
+      request,
+    );
   }
 
-  supplyTokens(
-    request: SupplyTokensRequest,
-    metadata: Metadata = new Metadata(),
-    options?: Partial<CallOptions>,
-  ): Promise<SupplyTokensResponse> {
-    return new Promise((resolve, reject) => {
-      this.createTransactionClient.supplyTokens(
-        request,
-        metadata,
-        options || {},
-        (err: ServiceError | null, response?: SupplyTokensResponse) => {
-          if (err || !response) {
-            reject(err);
-          } else {
-            resolve(response);
-          }
-        },
-      );
-    });
+  supplyTokens(request: SupplyTokensRequest): Promise<SupplyTokensResponse> {
+    return this.post<SupplyTokensRequest, SupplyTokensResponse>(
+      "/transaction/supplyTokens",
+      request,
+    );
   }
 
   withdrawTokens(
     request: WithdrawTokensRequest,
-    metadata: Metadata = new Metadata(),
-    options?: Partial<CallOptions>,
   ): Promise<WithdrawTokensResponse> {
-    return new Promise((resolve, reject) => {
-      this.createTransactionClient.withdrawTokens(
-        request,
-        metadata,
-        options || {},
-        (err: ServiceError | null, response?: WithdrawTokensResponse) => {
-          if (err || !response) {
-            reject(err);
-          } else {
-            resolve(response);
-          }
-        },
-      );
-    });
+    return this.post<WithdrawTokensRequest, WithdrawTokensResponse>(
+      "/transaction/withdrawTokens",
+      request,
+    );
   }
 
   supplyLiquidity(
     request: SupplyLiquidityRequest,
-    metadata: Metadata = new Metadata(),
-    options?: Partial<CallOptions>,
   ): Promise<SupplyLiquidityResponse> {
-    return new Promise((resolve, reject) => {
-      this.createTransactionClient.supplyLiquidity(
-        request,
-        metadata,
-        options || {},
-        (err: ServiceError | null, response?: SupplyLiquidityResponse) => {
-          if (err || !response) {
-            reject(err);
-          } else {
-            resolve(response);
-          }
-        },
-      );
-    });
+    return this.post<SupplyLiquidityRequest, SupplyLiquidityResponse>(
+      "/transaction/supplyLiquidity",
+      request,
+    );
   }
 
   withdrawLiquidity(
     request: WithdrawLiquidityRequest,
-    metadata: Metadata = new Metadata(),
-    options?: Partial<CallOptions>,
   ): Promise<WithdrawLiquidityResponse> {
-    return new Promise((resolve, reject) => {
-      this.createTransactionClient.withdrawLiquidity(
-        request,
-        metadata,
-        options || {},
-        (err: ServiceError | null, response?: WithdrawLiquidityResponse) => {
-          if (err || !response) {
-            reject(err);
-          } else {
-            resolve(response);
-          }
-        },
-      );
-    });
+    return this.post<WithdrawLiquidityRequest, WithdrawLiquidityResponse>(
+      "/transaction/withdrawLiquidity",
+      request,
+    );
   }
 
-  getLiquidityPools(
-    metadata: Metadata = new Metadata(),
-    options?: Partial<CallOptions>,
-  ): Promise<GetLiquidityPoolsResponse> {
-    return new Promise((resolve, reject) => {
-      this.createTransactionClient.getLiquidityPools(
-        {},
-        metadata,
-        options || {},
-        (err: ServiceError | null, response?: GetLiquidityPoolsResponse) => {
-          if (err || !response) {
-            reject(err);
-          } else {
-            resolve(response);
-          }
-        },
-      );
-    });
+  getLiquidityPools(): Promise<GetLiquidityPoolsResponse> {
+    // Empty body request
+    return this.post<object, GetLiquidityPoolsResponse>(
+      "/transaction/getLiquidityPools",
+      {},
+    );
   }
 
   // TransactionExecution method
   getProviderTrackingStatus(
     request: GetProviderTrackingStatusRequest,
-    metadata: Metadata = new Metadata(),
-    options?: Partial<CallOptions>,
   ): Promise<GetProviderTrackingStatusResponse> {
-    return new Promise((resolve, reject) => {
-      this.transactionExecutionClient.getProviderTrackingStatus(
-        request,
-        metadata,
-        options || {},
-        (
-          err: ServiceError | null,
-          response?: GetProviderTrackingStatusResponse,
-        ) => {
-          if (err || !response) {
-            reject(err);
-          } else {
-            resolve(response);
-          }
-        },
-      );
-    });
+    return this.post<
+      GetProviderTrackingStatusRequest,
+      GetProviderTrackingStatusResponse
+    >("/transactionExecution/getProviderTrackingStatus", request);
   }
 }

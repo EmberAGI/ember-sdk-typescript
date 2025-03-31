@@ -2,7 +2,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { createOpenAIToolsAgent, AgentExecutor } from "langchain/agents";
 import { pull } from "langchain/hub";
 import { StructuredTool } from "@langchain/core/tools";
-import EmberClient, { OrderType, TransactionType } from "../src/index.js";
+import EmberClient from "@emberai/sdk-typescript";
 import { z } from "zod";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -22,9 +22,7 @@ class GetChainsTool extends StructuredTool {
 
   async _call() {
     const { chains } = await this.client.getChains({
-      pageSize: 10,
       filter: "",
-      pageToken: "",
     });
     return JSON.stringify(chains);
   }
@@ -48,7 +46,6 @@ class GetTokensTool extends StructuredTool {
   async _call({ chainId }: { chainId: string }) {
     const { tokens } = await this.client.getTokens({
       chainId,
-      pageSize: 100,
       filter: "",
       pageToken: "",
     });
@@ -97,7 +94,7 @@ class SwapTokensTool extends StructuredTool {
     recipient: string;
   }) {
     const swap = await this.client.swapTokens({
-      orderType: OrderType.MARKET_BUY,
+      orderType: "MARKET_BUY",
       baseToken: {
         chainId,
         address: baseTokenId,
@@ -116,7 +113,7 @@ class SwapTokensTool extends StructuredTool {
     }
 
     // Verify this is an EVM transaction
-    if (swap.transactionPlan.type !== TransactionType.EVM_TX) {
+    if (swap.transactionPlan.type !== "EVM_TX") {
       throw new Error("Expected EVM transaction");
     }
 
@@ -237,10 +234,7 @@ async function main() {
   }
 
   // Initialize the Ember client
-  const client = new EmberClient({
-    endpoint: "grpc.api.emberai.xyz:50051",
-    apiKey: process.env.EMBER_API_KEY,
-  });
+  const client = new EmberClient("grpc.api.emberai.xyz:50051");
 
   // Initialize Ethereum clients
   const transport = http(process.env.RPC_URL || "https://eth.llamarpc.com");
@@ -293,8 +287,6 @@ async function main() {
     console.log("Agent Response:", result.output);
   } catch (error) {
     console.error("Error:", error);
-  } finally {
-    client.close();
   }
 }
 

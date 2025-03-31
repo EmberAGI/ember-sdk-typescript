@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import { ethers } from "ethers";
 import {
   EmberClient,
-  EmberGrpcClient,
+  EmberHttpClient,
   GetWalletPositionsResponse,
 } from "@emberai/sdk-typescript";
 import { Agent } from "../examples/aave-agent/agent";
@@ -53,7 +53,7 @@ describe("Integration tests for AAVE", function () {
       }
     }
 
-    return null;
+    throw "getReserveOfToken: Token not found: " + name;
   };
 
   this.beforeAll(async () => {
@@ -73,7 +73,7 @@ describe("Integration tests for AAVE", function () {
     }
     wallet = ethers.Wallet.fromMnemonic(mnemonic);
     const signer = wallet.connect(provider);
-    client = new EmberGrpcClient(emberEndpoint);
+    client = new EmberHttpClient(emberEndpoint);
     agent = new Agent(client, signer, wallet.address);
     // Mute logs
     agent.log = async () => {};

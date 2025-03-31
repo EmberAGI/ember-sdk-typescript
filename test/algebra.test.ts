@@ -2,7 +2,7 @@
 import { assert, expect } from "chai";
 import dotenv from "dotenv";
 import { ethers } from "ethers";
-import { EmberClient, EmberGrpcClient } from "@emberai/sdk-typescript";
+import { EmberClient, EmberHttpClient } from "@emberai/sdk-typescript";
 import { Agent } from "../examples/camelot-agent/agent";
 import { ensureWethBalance } from "./helpers/weth";
 import { mintUSDC } from "./helpers/mint-usdc";
@@ -51,7 +51,7 @@ describe("Integration tests for Algebra (Camelot)", function () {
     }
     wallet = ethers.Wallet.fromMnemonic(mnemonic);
     const signer = wallet.connect(provider);
-    client = new EmberGrpcClient(emberEndpoint);
+    client = new EmberHttpClient(emberEndpoint);
     agent = new Agent(client, signer, wallet.address);
     // Mute logs
     agent.log = async () => {};
