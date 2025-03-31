@@ -63,6 +63,9 @@ export const startEnv = async (useAnvil: bool) => {
     "compose",
   );
 
+  // Add some timeout to make sure the memgraph port is available
+  await new Promise((resolve) => setTimeout(resolve, 10_000));
+
   await runCommand("pnpm install", "install");
   try {
     await runCommand("pnpm run dev", "dev", {}, "service running");
