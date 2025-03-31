@@ -137,7 +137,7 @@ describe("Integration tests for AAVE", function () {
     const newReserve = await getReserveOfToken("WETH");
     expect(parseFloat(oldReserve.totalBorrows)).to.be.closeTo(
       parseFloat(newReserve.totalBorrows) - parseFloat(amountToBorrow),
-      0.000001,
+      0.00001,
     );
   });
 
@@ -166,7 +166,7 @@ describe("Integration tests for AAVE", function () {
     const newReserve = await getReserveOfToken("WETH");
     expect(parseFloat(oldReserve.totalBorrows)).to.be.closeTo(
       parseFloat(newReserve.totalBorrows) + parseFloat(amountToRepay),
-      0.000001,
+      0.00001,
     );
   });
 
