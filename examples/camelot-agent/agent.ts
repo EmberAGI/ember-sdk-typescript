@@ -9,12 +9,8 @@ import {
   TransactionPlan,
 } from "@emberai/sdk-typescript";
 
-const GAS_LIMIT_BUFFER = 20; // percentage
-const FEE_BUFFER = 10; // percentage, applies to maxFeePerGas and maxPriorityFeePerGas
-
-function logError(...args: unknown[]) {
-  console.error(...args);
-}
+const GAS_LIMIT_BUFFER = 10; // percentage
+const FEE_BUFFER = 5; // percentage, applies to maxFeePerGas and maxPriorityFeePerGas
 
 type ChatCompletionRequestMessage = {
   content: string;
@@ -160,8 +156,20 @@ Rules:
 
   async start() {
     await this.init();
-    console.log("Agent started. Type your message below.");
+    this.log("Agent started. Type your message below.");
     this.promptUser();
+  }
+
+  async stop() {
+    this.rl.close();
+  }
+
+  log(...args: unknown[]) {
+    console.log(...args);
+  }
+
+  logError(...args: unknown[]) {
+    console.error(...args);
   }
 
   private promptUser() {
@@ -171,11 +179,19 @@ Rules:
     });
   }
 
-  async processUserInput(userInput: string) {
+  async processUserInput(
+    userInput: string,
+  ): Promise<ChatCompletionRequestMessage> {
     this.conversationHistory.push({ role: "user", content: userInput });
     const response = await this.callChatCompletion();
     response.content = response.content || "";
-    await this.handleResponse(response as ChatCompletionRequestMessage);
+    const followUp: { content: string } | undefined = await this.handleResponse(
+      response as ChatCompletionRequestMessage,
+    );
+    if (typeof followUp !== "undefined") {
+      return followUp as ChatCompletionRequestMessage;
+    }
+    return response as ChatCompletionRequestMessage;
   }
 
   async callChatCompletion() {
@@ -188,16 +204,18 @@ Rules:
     return response.choices[0].message;
   }
 
-  async handleResponse(message: ChatCompletionRequestMessage | undefined) {
+  async handleResponse(
+    message: ChatCompletionRequestMessage | undefined,
+  ): Promise<{ content: string } | undefined> {
     if (!message) return;
     if (message.function_call) {
       const functionName = message.function_call.name;
       const argsString = message.function_call.arguments;
-      let args;
+      let args: Record<string, unknown>;
       try {
         args = JSON.parse(argsString || "{}");
       } catch (error) {
-        logError("Error parsing function arguments:", error);
+        this.logError("Error parsing function arguments:", error);
         args = {};
       }
       try {
@@ -212,24 +230,26 @@ Rules:
         if (shouldFollowUp) {
           const followUp = await this.callChatCompletion();
           if (followUp && followUp.content) {
-            console.log("[assistant]:", followUp.content);
+            this.log("[assistant]:", followUp.content);
             this.conversationHistory.push({
               role: "assistant",
               content: followUp.content,
             });
+            return { content: followUp.content };
           }
         } else {
-          console.log("[assistant]:", result);
+          this.log("[assistant]:", result);
+          return { content: result };
         }
       } catch (e) {
         this.conversationHistory.push({
           role: "assistant",
           content: `${functionName} call error: ${e}`,
         });
-        logError("handleResponse", e);
+        this.logError("handleResponse", e);
       }
     } else {
-      console.log("[assistant]:", message.content);
+      this.log("[assistant]:", message.content);
       this.conversationHistory.push({
         role: "assistant",
         content: message.content || "",
@@ -241,7 +261,7 @@ Rules:
     functionName: string,
     args: Record<string, unknown>,
   ): Promise<{ content: string; followUp: boolean }> {
-    console.log("tool:", functionName, args);
+    this.log("tool:", functionName, args);
     const withFollowUp = (content: string) => ({ content, followUp: true });
     const verbatim = (content: string) => ({ content, followUp: false });
     switch (functionName) {
@@ -279,13 +299,13 @@ Rules:
       const transactions = await actionFunction();
       for (const transaction of transactions) {
         const txHash = await this.signAndSendTransaction(transaction);
-        console.log("transaction sent:", txHash);
+        this.log("transaction sent:", txHash);
       }
       return `${actionName}: success!`;
     } catch (error: unknown) {
       const err = error as Error;
       const reason = err.message;
-      logError(`Error in ${actionName}:`, reason);
+      this.logError(`Error in ${actionName}:`, reason);
       return `Error executing ${actionName}: ${reason}`;
     }
   }

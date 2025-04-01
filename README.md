@@ -114,7 +114,7 @@ docker compose run --rm sdk pnpm build
 
 # Run tests
 docker compose run --rm sdk pnpm test
-``` 
+```
 
 _or_
 
@@ -159,6 +159,20 @@ export WALLET_ADDRESS='0x...'
 # Run the LangChain swap example
 pnpm tsx examples/langchain-swap.ts
 ```
+
+## Testing
+
+### Anvil-powered tests
+
+1. Run `pnpm run start:anvil` to start an [Anvil](https://book.getfoundry.sh/anvil/) chain and connect the server to it.
+2. In another shell, run `pnpm run test`
+
+### Mainnet test suite
+
+See [#23](https://github.com/EmberAGI/ember-sdk-typescript/issues/23) for motivation why it is needed.
+
+1. Run `pnpm run start:mainnet`
+2. In another shell, run `pnpm run test:mainnet`
 
 ## License
 
