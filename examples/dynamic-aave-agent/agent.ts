@@ -1,8 +1,14 @@
 import { OpenAI } from "openai";
-import { ChainName, handleChatMessage, LendingToolPayload, LendingToolDataProvider, LLMLendingTool, TokenName } from '../../onchain-actions/build/src/services/api/dynamic/aave.js';
+import {
+  ChainName,
+  handleChatMessage,
+  LendingToolPayload,
+  LendingToolDataProvider,
+  LLMLendingTool,
+  TokenName,
+} from "../../onchain-actions/build/src/services/api/dynamic/aave.js";
 import { ChatCompletionCreateParams } from "openai/resources/index.mjs";
 import readline from "readline";
-import { match, P } from "ts-pattern";
 
 export type ChatCompletionRequestMessage = {
   content: string;
@@ -28,7 +34,7 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
     prompt: string,
     functionName: string,
     paramName: string,
-    variants: T[]
+    variants: T[],
   ): Promise<T | null> {
     this.log(`[${functionName}]: ${prompt}`);
     const response = await this.openai.chat.completions.create({
@@ -59,7 +65,8 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
       function_call: "auto",
     });
 
-    const message: ChatCompletionRequestMessage = response.choices[0].message as ChatCompletionRequestMessage;
+    const message: ChatCompletionRequestMessage = response.choices[0]
+      .message as ChatCompletionRequestMessage;
     const args = JSON.parse(message.function_call!.arguments);
     this.log(`[${functionName}]: response: ${args[paramName]}`);
     return args[paramName];
@@ -73,7 +80,7 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
       "Determine which token is this: " + tokenName,
       "detect_token_name",
       "tokenName",
-      variants
+      variants,
     );
   }
 
@@ -85,16 +92,13 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
       "Determine which chain name is this: " + chainName,
       "detect_chain_name",
       "chainName",
-      variants
+      variants,
     );
   }
 }
 
 export class MockLendingToolDataProvider implements LendingToolDataProvider {
-  constructor(
-    private tokenNames: Record<TokenName, ChainName[]>
-  ) {
-  }
+  constructor(private tokenNames: Record<TokenName, ChainName[]>) {}
 
   async getAvailableTokenNames(): Promise<TokenName[]> {
     return [...Object.keys(this.tokenNames)];
@@ -144,14 +148,14 @@ export class DynamicApiAgent {
       {
         name: "provide_parameters",
         description:
-        "Parse some parameters for the action from the last user message. All of the parameters are optional. Never ask the user to provide these parameters. Only specify parameters that were provided in the last message",
+          "Parse some parameters for the action from the last user message. All of the parameters are optional. Never ask the user to provide these parameters. Only specify parameters that were provided in the last message",
         parameters: {
           type: "object",
           properties: {
             tool: {
               type: "string",
               description: "Action to perform",
-              enum: ["borrow", "repay"]
+              enum: ["borrow", "repay"],
             },
             tokenName: {
               type: "string",
@@ -200,11 +204,11 @@ export class DynamicApiAgent {
   }
 
   async handleResponse(message: ChatCompletionRequestMessage) {
-    if (message.function_call?.name === 'provide_parameters') {
+    if (message.function_call?.name === "provide_parameters") {
       const argsString: string = message.function_call.arguments;
 
       const args = JSON.parse(argsString || "{}") as SpecifyParametersCall;
-      console.log('[handleResponse] parsed arguments:', args);
+      console.log("[handleResponse] parsed arguments:", args);
 
       if (["borrow", "repay"].includes(args.tool)) {
         this.payload.tool = args.tool as "borrow" | "repay";
@@ -223,18 +227,21 @@ export class DynamicApiAgent {
       //   // unhandled case: no tool specified
       // });
 
-      const { parameterOptions, payload: updatedPayload } = await handleChatMessage(
-        this.dataProvider,
-        this.llmLendingTool,
-        this.payload
-      );
+      const { parameterOptions, payload: updatedPayload } =
+        await handleChatMessage(
+          this.dataProvider,
+          this.llmLendingTool,
+          this.payload,
+        );
 
-      this.log('message', message);
-      this.log('parameterOptions', parameterOptions);
-      this.log('updatedPayload', updatedPayload);
+      this.log("message", message);
+      this.log("parameterOptions", parameterOptions);
+      this.log("updatedPayload", updatedPayload);
       this.payload = updatedPayload;
     } else {
-      this.log("No useful input provided from the user: provide_parameters wasn't called by LLM");
+      this.log(
+        "No useful input provided from the user: provide_parameters wasn't called by LLM",
+      );
     }
   }
 
