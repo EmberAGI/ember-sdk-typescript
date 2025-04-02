@@ -50,7 +50,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@hey-api/client-fetch": "^0.8.4"
+    "@hey-api/client-fetch": "^0.8.4",
+    "fp-ts": "^2.16.9"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
