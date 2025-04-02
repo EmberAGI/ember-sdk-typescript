@@ -59,6 +59,12 @@ jobs:
           cp .env.example .env
           cp onchain-actions/.env.template onchain-actions/.env
 
+      - name: build onchain-actions
+        run: |
+          cd onchain-actions
+          pnpm install --ignore-workspace
+          pnpm run build
+
       - name: Launch anvil and dev server, keep running in background
         run: |
           pnpm run start:anvil 2>&1 | tee server_output.log &
