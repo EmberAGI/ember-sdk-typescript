@@ -1,0 +1,41 @@
+version: '3.8' # Specifies the Docker Compose file version
+
+services:
+
+  aave-agent:
+    build: ../aave-agent # Path to the aave-agent Dockerfile
+    container_name: aave-agent
+    ports:
+      - "3001:3001" # Adjust the port as needed
+    # environment:
+    #   - ../aave-agent/.env # Use the separate .env file
+    env_file:
+      - ../aave-agent/.env # Use the separate .env file
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - EMBER_ENDPOINT=${EMBER_ENDPOINT}
+      - RPC_URL=${RPC_URL}
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3001/health" ] # Adjust to match your actual health endpoint
+      interval: 10s
+      retries: 20
+      start_period: 10s
+      timeout: 5s
+  mcp-sse-client:
+    # Define the service name
+    build: . # Build the image using the Dockerfile in the current directory
+    container_name: mcp-sse-client # Define the service name # Optional: Give the container a specific name
+    ports:
+      - "${PORT:-3002}:${PORT:-3002}" # Map host port and container port using PORT env var (default 3002)
+    volumes:
+      - ./.env:/app/.env # Mount the .env file from the host to /app/.env in the container
+    environment:
+      - SSE_SERVER_URL=http://aave-agent:3001/sse
+
+    restart: unless-stopped # Optional: Policy for restarting the container
+    depends_on:
+      aave-agent:
+        condition: service_healthy

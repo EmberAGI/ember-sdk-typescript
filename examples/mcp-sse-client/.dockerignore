@@ -1,0 +1,44 @@
+# Dependency directories
+node_modules
+.pnpm-store
+
+# Build outputs
+dist
+build
+
+# Environment files (copy them explicitly in Dockerfile for local development)
+.env
+.env.*
+!.env.example
+
+# Git files
+.git
+.gitignore
+
+# Editor directories and files
+.idea
+.vscode
+*.swp
+*.swo
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test files
+__tests__
+test
+tests
+coverage
+
+# Docker files (no need to include these in the build)
+Dockerfile
+.dockerignore
+
+# OS specific files
+.DS_Store
+Thumbs.db 
