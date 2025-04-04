@@ -253,48 +253,49 @@ export class DynamicApiAgent {
     this.log("[processUserInput]:", userInput);
     this.conversationHistory.push({ role: "user", content: userInput });
 
+    const useHistory = true;
+
     const parsedParametersResponse: ChatCompletionMessage = await this.callTool(
-      [{ role: "user", content: userInput }],
+      useHistory
+        ? this.conversationHistory
+        : [{ role: "user", content: userInput }],
       [this.mkProvideParametersTool()],
     );
     this.log("[parsedParametersResponse]", parsedParametersResponse);
     parsedParametersResponse.content = parsedParametersResponse.content || "";
     await this.handleParametersResponse(parsedParametersResponse);
     return parsedParametersResponse;
-
-    // const response: ChatCompletionMessage = await this.callTool(
-    //   this.conversationHistory,
-    //   [
-    //     this.mkProvideParametersTool()
-    //   ]);
-    // parsedParametersResponse.content = parsedParametersResponse.content || "";
-    // await this.handleParametersResponse(parsedParametersResponse);
-    // this.log('[parsedParametersResponse]', parsedParametersResponse);
-
-    // const response = await this.callChatCompletion(
-    //   this.conversationHistory.concat(
-    //     [
-
-    //     ]
-    //   ),
-    //   [
-    //     this.mkProvideParametersTool()
-    //   ]);
-    // response.content = response.content || "";
-
-    // return response as ChatCompletionRequestMessage;
   }
 
   async handleParametersResponse(
     message: ChatCompletionMessage,
   ): Promise<ParameterOptions | null> {
-    if (
-      message.tool_calls?.length &&
-      message.tool_calls[0].function.name === "provide_parameters"
-    ) {
-      const argsString: string = message.tool_calls[0].function.arguments;
+    if (message.tool_calls?.length) {
+      // merge parameters from multiple tool calls first, because we don't want to
+      // roundtrip to the server more than once
+      let args: SpecifyParametersCall = {};
+      for (const tool_call of message.tool_calls) {
+        const argsString: string = tool_call.function.arguments;
 
-      const args = JSON.parse(argsString || "{}") as SpecifyParametersCall;
+        const propertiesCount = Object.keys(args).length;
+        const oldArgs = clone(args);
+        const parsedArgs = JSON.parse(
+          argsString || "{}",
+        ) as SpecifyParametersCall;
+        const parsedArgsCount = Object.keys(parsedArgs).length;
+        args = { ...args, ...parsedArgs };
+
+        // runtime sanity check
+        if (parsedArgsCount + propertiesCount !== Object.keys(args).length) {
+          console.error(oldArgs);
+          console.error(parsedArgs);
+          console.error(args);
+          throw new Error(
+            "[handleParametersResponse]: invariant violated, we assumed properties can't get overwritten by multiple tool calls",
+          );
+        }
+      }
+
       this.log("[handleParametersResponse] parsed arguments:", args);
 
       if (["borrow", "repay"].includes(args.tool)) {
