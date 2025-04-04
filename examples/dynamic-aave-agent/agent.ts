@@ -1,4 +1,6 @@
+import util from "util";
 import { OpenAI } from "openai";
+import clone from "clone";
 import {
   ChainName,
   handleChatMessage,
@@ -6,17 +8,45 @@ import {
   LendingToolDataProvider,
   LLMLendingTool,
   TokenName,
+  ParameterOptions,
 } from "../../onchain-actions/build/src/services/api/dynamic/aave.js";
-import { ChatCompletionCreateParams } from "openai/resources";
+import {
+  ChatCompletionMessageParam,
+  ChatCompletionTool,
+  ChatCompletionMessage,
+} from "openai/resources";
 import readline from "readline";
 
-export type ChatCompletionRequestMessage = {
-  content: string;
-  role: "user" | "system" | "assistant";
-  function_call?: {
-    name: string;
-    arguments: string;
-  };
+const provideParametersTool: ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: "provide_parameters",
+    description:
+      "Parse some parameters for the action from the last user message. All of the parameters are optional. Never ask the user to provide these parameters. Only specify parameters that were provided in the last message. Use this tool no more than once for multiple parameters.",
+    parameters: {
+      type: "object",
+      properties: {
+        tool: {
+          type: "string",
+          description: "Action to perform",
+          enum: ["borrow", "repay"],
+        },
+        tokenName: {
+          type: "string",
+          description: "The token name to use.",
+        },
+        chainName: {
+          type: "string",
+          description: "The chain name to use.",
+        },
+        amount: {
+          type: "string",
+          description: "The amount of asset to use (human readable).",
+        },
+      },
+      required: [],
+    },
+  },
 };
 
 export class LLMLendingToolOpenAI implements LLMLendingTool {
@@ -27,7 +57,15 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
   }
 
   public async log(...args: unknown[]) {
-    console.log(...args);
+    console.log(
+      args
+        .map((arg) =>
+          typeof arg === "string"
+            ? arg
+            : util.inspect(arg, { depth: null, colors: true }),
+        )
+        .join(", "),
+    );
   }
 
   private async specifyValue<T>(
@@ -45,31 +83,38 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
           content: prompt,
         },
       ],
-      functions: [
+      tools: [
         {
-          name: functionName,
-          description: `Determine which ${paramName} is used.`,
-          parameters: {
-            type: "object",
-            properties: {
-              [paramName]: {
-                type: "string",
-                enum: variants,
-                description: `The ${paramName}.`,
+          type: "function",
+          function: {
+            name: functionName,
+            description: `Determine which ${paramName} is used.`,
+            parameters: {
+              type: "object",
+              properties: {
+                [paramName]: {
+                  type: "string",
+                  enum: variants,
+                  description: `The ${paramName}.`,
+                },
               },
+              required: [paramName],
             },
-            required: [paramName],
           },
         },
       ],
-      function_call: "auto",
+      tool_choice: "auto",
     });
 
-    const message: ChatCompletionRequestMessage = response.choices[0]
-      .message as ChatCompletionRequestMessage;
-    const args = JSON.parse(message.function_call!.arguments);
-    this.log(`[${functionName}]: response: ${args[paramName]}`);
-    return args[paramName];
+    // TODO: handle the case with 0 or many tool calls
+    try {
+      const message = response.choices[0].message;
+      const args = JSON.parse(message.tool_calls[0].function.arguments);
+      this.log(`[${functionName}]: response: ${args[paramName]}`);
+      return args[paramName];
+    } catch (_e) {
+      return null;
+    }
   }
 
   async specifyTokenName(
@@ -98,7 +143,7 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
 }
 
 export class MockLendingToolDataProvider implements LendingToolDataProvider {
-  constructor(private tokenNames: Record<TokenName, ChainName[]>) {}
+  constructor(public tokenNames: Record<TokenName, ChainName[]>) {}
 
   async getAvailableTokenNames(): Promise<TokenName[]> {
     return [...Object.keys(this.tokenNames)];
@@ -116,26 +161,28 @@ export type SpecifyParametersCall = {
   amount?: string;
 };
 
+export type LendingToolParameters = {
+  tool: "borrow" | "repay";
+  tokenName: string;
+  chainName: string;
+  amount: string;
+};
+
 export class DynamicApiAgent {
-  private functions: ChatCompletionCreateParams.Function[] = [];
-  public conversationHistory: ChatCompletionRequestMessage[] = [];
+  public parameterOptions: ParameterOptions | null = null;
+  public conversationHistory: ChatCompletionMessageParam[] = [];
+  private initialized = false;
   private openai: OpenAI;
   private rl: readline.Interface;
   public payload: LendingToolPayload;
+  public dispatch: (payload: LendingToolParameters) => Promise<void> =
+    async () => {};
 
   constructor(
     private dataProvider: LendingToolDataProvider,
     private llmLendingTool: LLMLendingTool,
   ) {
-    this.payload = {
-      tool: null,
-      providedTokenName: null,
-      specifiedTokenName: null,
-      providedChainName: null,
-      specifiedChainName: null,
-      amount: null,
-    };
-
+    this.resetPayload();
     if (!process.env.OPENAI_API_KEY) {
       throw new Error("OPENAI_API_KEY not set!");
     }
@@ -144,36 +191,26 @@ export class DynamicApiAgent {
       input: process.stdin,
       output: process.stdout,
     });
-    this.functions = [
-      {
-        name: "provide_parameters",
-        description:
-          "Parse some parameters for the action from the last user message. All of the parameters are optional. Never ask the user to provide these parameters. Only specify parameters that were provided in the last message",
-        parameters: {
-          type: "object",
-          properties: {
-            tool: {
-              type: "string",
-              description: "Action to perform",
-              enum: ["borrow", "repay"],
-            },
-            tokenName: {
-              type: "string",
-              description: "The token name to use.",
-            },
-            chainName: {
-              type: "string",
-              description: "The chain name to use.",
-            },
-            amount: {
-              type: "string",
-              description: "The amount of asset to use (human readable).",
-            },
-          },
-          required: [],
-        },
-      },
-    ];
+  }
+
+  public async resetParameterOptions() {
+    const { parameterOptions } = await handleChatMessage(
+      this.dataProvider,
+      this.llmLendingTool,
+      this.payload,
+    );
+    this.parameterOptions = parameterOptions;
+  }
+
+  public resetPayload() {
+    this.payload = {
+      tool: null,
+      providedTokenName: null,
+      specifiedTokenName: null,
+      providedChainName: null,
+      specifiedChainName: null,
+      amount: null,
+    };
   }
 
   async start() {
@@ -193,22 +230,72 @@ export class DynamicApiAgent {
     });
   }
 
-  async processUserInput(
-    userInput: string,
-  ): Promise<ChatCompletionRequestMessage> {
-    this.conversationHistory.push({ role: "user", content: userInput });
-    const response = await this.callChatCompletion();
-    response.content = response.content || "";
-    await this.handleResponse(response as ChatCompletionRequestMessage);
-    return response as ChatCompletionRequestMessage;
+  public mkProvideParametersTool(): ChatCompletionTool {
+    const tool = clone(provideParametersTool);
+    const { chainOptions, tokenOptions } = this.parameterOptions;
+    if (chainOptions !== null) {
+      tool.function.parameters.properties.chainName.enum = chainOptions;
+    }
+    if (tokenOptions !== null) {
+      tool.function.parameters.properties.tokenName.enum = tokenOptions;
+    }
+    this.log("[mkProvideParametersTool]:", tool);
+    return tool;
   }
 
-  async handleResponse(message: ChatCompletionRequestMessage) {
-    if (message.function_call?.name === "provide_parameters") {
-      const argsString: string = message.function_call.arguments;
+  async processUserInput(
+    userInput: string,
+  ): Promise<ChatCompletionMessageParam> {
+    if (!this.initialized) {
+      await this.init();
+    }
+
+    this.log("[processUserInput]:", userInput);
+    this.conversationHistory.push({ role: "user", content: userInput });
+
+    const parsedParametersResponse: ChatCompletionMessage = await this.callTool(
+      [{ role: "user", content: userInput }],
+      [this.mkProvideParametersTool()],
+    );
+    this.log("[parsedParametersResponse]", parsedParametersResponse);
+    parsedParametersResponse.content = parsedParametersResponse.content || "";
+    await this.handleParametersResponse(parsedParametersResponse);
+    return parsedParametersResponse;
+
+    // const response: ChatCompletionMessage = await this.callTool(
+    //   this.conversationHistory,
+    //   [
+    //     this.mkProvideParametersTool()
+    //   ]);
+    // parsedParametersResponse.content = parsedParametersResponse.content || "";
+    // await this.handleParametersResponse(parsedParametersResponse);
+    // this.log('[parsedParametersResponse]', parsedParametersResponse);
+
+    // const response = await this.callChatCompletion(
+    //   this.conversationHistory.concat(
+    //     [
+
+    //     ]
+    //   ),
+    //   [
+    //     this.mkProvideParametersTool()
+    //   ]);
+    // response.content = response.content || "";
+
+    // return response as ChatCompletionRequestMessage;
+  }
+
+  async handleParametersResponse(
+    message: ChatCompletionMessage,
+  ): Promise<ParameterOptions | null> {
+    if (
+      message.tool_calls?.length &&
+      message.tool_calls[0].function.name === "provide_parameters"
+    ) {
+      const argsString: string = message.tool_calls[0].function.arguments;
 
       const args = JSON.parse(argsString || "{}") as SpecifyParametersCall;
-      console.log("[handleResponse] parsed arguments:", args);
+      this.log("[handleParametersResponse] parsed arguments:", args);
 
       if (["borrow", "repay"].includes(args.tool)) {
         this.payload.tool = args.tool as "borrow" | "repay";
@@ -232,7 +319,7 @@ export class DynamicApiAgent {
         this.payload.providedTokenName = args.tokenName;
       }
 
-      const { parameterOptions, payload: updatedPayload } =
+      const { parameterOptions: newParameterOptions, payload: updatedPayload } =
         await handleChatMessage(
           this.dataProvider,
           this.llmLendingTool,
@@ -240,22 +327,60 @@ export class DynamicApiAgent {
         );
 
       this.log("message", message);
-      this.log("parameterOptions", parameterOptions);
+      this.log("newParameterOptions", newParameterOptions);
       this.log("updatedPayload", updatedPayload);
       this.payload = updatedPayload;
+
+      const finalizedPayload = this.finalizePayload();
+      if (finalizedPayload !== null) {
+        this.log("dispatching:", finalizedPayload);
+        await this.dispatch(finalizedPayload);
+        this.resetPayload();
+        await this.resetParameterOptions();
+      } else {
+        this.log("not dispatching yet");
+      }
+
+      if (newParameterOptions !== null) {
+        this.parameterOptions = newParameterOptions;
+      }
+
+      return newParameterOptions;
     } else {
       this.log(
         "No useful input provided from the user: provide_parameters wasn't called by LLM",
       );
+      return null;
     }
   }
 
-  async callChatCompletion() {
+  private finalizePayload(): LendingToolParameters | null {
+    if (
+      this.payload.amount !== null &&
+      this.payload.specifiedChainName !== null &&
+      this.payload.specifiedTokenName !== null &&
+      this.payload.tool !== null
+    ) {
+      return {
+        amount: this.payload.amount,
+        chainName: this.payload.specifiedChainName,
+        tokenName: this.payload.specifiedTokenName,
+        tool: this.payload.tool,
+      };
+    } else {
+      return null;
+    }
+  }
+
+  async callTool(
+    messages: ChatCompletionMessageParam[],
+    tools: ChatCompletionTool[],
+  ): Promise<ChatCompletionMessage> {
     const response = await this.openai.chat.completions.create({
       model: "gpt-4o",
-      messages: this.conversationHistory,
-      functions: this.functions,
-      function_call: "auto",
+      messages,
+      tools,
+      tool_choice: "auto",
     });
     return response.choices[0].message;
   }
@@ -265,11 +390,23 @@ export class DynamicApiAgent {
       {
         role: "system",
         content: `You are an assistant that provides access to blockchain lending and borrowing functionalities via Ember SDK. Never respond in markdown, always use plain text. Never add links to your response. Do not suggest the user to ask questions. When an unknown error happens, do not try to guess the error reason.`,
-      }
+      },
     ];
+
+    this.resetPayload();
+    await this.resetParameterOptions();
+    this.initialized = true;
   }
 
   public async log(...args: unknown[]) {
-    console.log(...args);
+    console.log(
+      args
+        .map((arg) =>
+          typeof arg === "string"
+            ? arg
+            : util.inspect(arg, { depth: null, colors: true }),
+        )
+        .join(" "),
+    );
   }
 }
