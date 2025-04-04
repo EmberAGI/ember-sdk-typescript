@@ -7,7 +7,7 @@ import {
   LLMLendingTool,
   TokenName,
 } from "../../onchain-actions/build/src/services/api/dynamic/aave.js";
-import { ChatCompletionCreateParams } from "openai/resources/index.mjs";
+import { ChatCompletionCreateParams } from "openai/resources";
 import readline from "readline";
 
 export type ChatCompletionRequestMessage = {
@@ -213,19 +213,24 @@ export class DynamicApiAgent {
       if (["borrow", "repay"].includes(args.tool)) {
         this.payload.tool = args.tool as "borrow" | "repay";
       }
+
       if (args.amount) {
         this.payload.amount = args.amount;
       }
+
       if (args.chainName) {
+        if (this.payload.providedChainName != args.chainName) {
+          this.payload.specifiedChainName = null;
+        }
         this.payload.providedChainName = args.chainName;
       }
+
       if (args.tokenName) {
+        if (this.payload.providedTokenName != args.tokenName) {
+          this.payload.specifiedTokenName = null;
+        }
         this.payload.providedTokenName = args.tokenName;
       }
-
-      // .with([{ tool: P.nullish }, { tool: P.nullish } ], ([args, payload]) => {
-      //   // unhandled case: no tool specified
-      // });
 
       const { parameterOptions, payload: updatedPayload } =
         await handleChatMessage(
@@ -260,7 +265,7 @@ export class DynamicApiAgent {
       {
         role: "system",
         content: `You are an assistant that provides access to blockchain lending and borrowing functionalities via Ember SDK. Never respond in markdown, always use plain text. Never add links to your response. Do not suggest the user to ask questions. When an unknown error happens, do not try to guess the error reason.`,
-      },
+      }
     ];
   }
 
