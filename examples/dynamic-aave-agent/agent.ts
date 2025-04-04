@@ -22,7 +22,7 @@ const provideParametersTool: ChatCompletionTool = {
   function: {
     name: "provide_parameters",
     description:
-      "Parse some parameters for the action from the last user message. All of the parameters are optional. Never ask the user to provide these parameters. Only specify parameters that were provided in the last message. Use this tool no more than once for multiple parameters.",
+      "Read some parameters for the action from the given user message.",
     parameters: {
       type: "object",
       properties: {
@@ -88,14 +88,14 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
           type: "function",
           function: {
             name: functionName,
-            description: `Determine which ${paramName} is used.`,
+            description: `Determine which ${paramName} the user wants to use.`,
             parameters: {
               type: "object",
               properties: {
                 [paramName]: {
                   type: "string",
                   enum: variants,
-                  description: `The ${paramName}.`,
+                  description: `The ${paramName} the user wants to use.`,
                 },
               },
               required: [paramName],
@@ -253,12 +253,15 @@ export class DynamicApiAgent {
     this.log("[processUserInput]:", userInput);
     this.conversationHistory.push({ role: "user", content: userInput });
 
-    const useHistory = true;
-
     const parsedParametersResponse: ChatCompletionMessage = await this.callTool(
-      useHistory
-        ? this.conversationHistory
-        : [{ role: "user", content: userInput }],
+      [
+        {
+          role: "system",
+          content:
+            "NEVER ask the user to provide the parameters. Only specify parameters that were provided. All of the parameters ARE optional!!!",
+        },
+        { role: "user", content: userInput },
+      ],
       [this.mkProvideParametersTool()],
     );
     this.log("[parsedParametersResponse]", parsedParametersResponse);
@@ -274,26 +277,12 @@ export class DynamicApiAgent {
       // merge parameters from multiple tool calls first, because we don't want to
       // roundtrip to the server more than once
       let args: SpecifyParametersCall = {};
-      for (const tool_call of message.tool_calls) {
+      for (const tool_call of message.tool_calls.reverse()) {
         const argsString: string = tool_call.function.arguments;
-
-        const propertiesCount = Object.keys(args).length;
-        const oldArgs = clone(args);
         const parsedArgs = JSON.parse(
           argsString || "{}",
         ) as SpecifyParametersCall;
-        const parsedArgsCount = Object.keys(parsedArgs).length;
         args = { ...args, ...parsedArgs };
-
-        // runtime sanity check
-        if (parsedArgsCount + propertiesCount !== Object.keys(args).length) {
-          console.error(oldArgs);
-          console.error(parsedArgs);
-          console.error(args);
-          throw new Error(
-            "[handleParametersResponse]: invariant violated, we assumed properties can't get overwritten by multiple tool calls",
-          );
-        }
       }
 
       this.log("[handleParametersResponse] parsed arguments:", args);
