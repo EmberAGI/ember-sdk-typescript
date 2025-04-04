@@ -231,12 +231,15 @@ export class DynamicApiAgent {
 
   public mkProvideParametersTool(): ChatCompletionTool {
     const tool = clone(provideParametersTool);
-    const { chainOptions, tokenOptions } = this.parameterOptions;
+    const { chainOptions, tokenOptions, toolOptions } = this.parameterOptions;
     if (chainOptions !== null) {
       tool.function.parameters.properties.chainName.enum = chainOptions;
     }
     if (tokenOptions !== null) {
       tool.function.parameters.properties.tokenName.enum = tokenOptions;
+    }
+    if (toolOptions !== null) {
+      tool.function.parameters.properties.tool.enum = toolOptions;
     }
     this.log("[mkProvideParametersTool]:", tool);
     return tool;
