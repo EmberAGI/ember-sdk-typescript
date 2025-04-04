@@ -28,20 +28,19 @@ const provideParametersTool: ChatCompletionTool = {
       properties: {
         tool: {
           type: "string",
-          description: "Action to perform",
-          enum: ["borrow", "repay"],
+          description: "Action to perform. Optional.",
         },
         tokenName: {
           type: "string",
-          description: "The token name to use.",
+          description: "The token name to use. Optional.",
         },
         chainName: {
           type: "string",
-          description: "The chain name to use.",
+          description: "The chain name to use. Optional.",
         },
         amount: {
           type: "string",
-          description: "The amount of asset to use (human readable).",
+          description: "The amount of asset to use (human readable). Optional.",
         },
       },
       required: [],
