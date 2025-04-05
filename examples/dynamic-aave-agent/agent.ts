@@ -74,7 +74,9 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
     paramName: string,
     variants: T[],
   ): Promise<T | null> {
-    this.log(`[${functionName}]: ${prompt}, (options: ${JSON.stringify(variants)})`);
+    this.log(
+      `[${functionName}]: ${prompt}, (options: ${JSON.stringify(variants)})`,
+    );
     const response = await this.openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -110,7 +112,7 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
     try {
       const message = response.choices[0].message;
       const args = JSON.parse(message.tool_calls[0].function.arguments);
-      if (typeof args[paramName] === 'undefined') {
+      if (typeof args[paramName] === "undefined") {
         this.log(`[${functionName}]: no suitable option`);
         return null;
       }
@@ -403,7 +405,9 @@ export class DynamicApiAgent {
 
       if (refusal) {
         this.resetPayload();
-        this.log('[handleParametersResponse]: the server refused this configuration of parameters in the payload as invalid.');
+        this.log(
+          "[handleParametersResponse]: the server refused this configuration of parameters in the payload as invalid.",
+        );
         return "refusal";
       }
 
