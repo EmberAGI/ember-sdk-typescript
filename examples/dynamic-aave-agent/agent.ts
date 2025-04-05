@@ -14,6 +14,7 @@ import {
   ChatCompletionMessageParam,
   ChatCompletionTool,
   ChatCompletionMessage,
+  ChatCompletionToolChoiceOption,
 } from "openai/resources";
 import readline from "readline";
 
@@ -224,11 +225,38 @@ export class DynamicApiAgent {
 
   promptUser() {
     this.rl.question("[user]: ", async (input: string) => {
-      await this.processUserInput(input);
+      const response = await this.processUserInput(input);
+      console.log("[assistant]:", response.content);
       this.promptUser();
     });
   }
 
+  // Create a tool that is not callable, but cointains some context for the LLM to
+  // figure out how to ask the user for more input.
+  public mkAskForParametersTool(): ChatCompletionTool {
+    const tool = clone(provideParametersTool);
+    const { chainOptions, tokenOptions, toolOptions } = this.parameterOptions;
+    if (chainOptions !== null) {
+      tool.function.parameters.properties.chainName.enum = chainOptions;
+    } else {
+      delete tool.function.parameters.properties.chainName;
+    }
+    if (tokenOptions !== null) {
+      tool.function.parameters.properties.tokenName.enum = tokenOptions;
+    } else {
+      delete tool.function.parameters.properties.tokenName;
+    }
+    if (toolOptions !== null) {
+      tool.function.parameters.properties.tool.enum = toolOptions;
+    } else {
+      delete tool.function.parameters.properties.tool;
+    }
+    this.log("[mkAskForParametersTool]:", tool);
+    return tool;
+  }
+
+  // Create a tool that parses user-supplied parameters based on `parameterOptions`
+  // returned from the server
   public mkProvideParametersTool(): ChatCompletionTool {
     const tool = clone(provideParametersTool);
     const { chainOptions, tokenOptions, toolOptions } = this.parameterOptions;
@@ -245,31 +273,55 @@ export class DynamicApiAgent {
     return tool;
   }
 
-  async processUserInput(
-    userInput: string,
-  ): Promise<ChatCompletionMessageParam> {
+  async processUserInput(userInput: string): Promise<ChatCompletionMessage> {
     if (!this.initialized) {
+      // TODO: make .init() private
       await this.init();
     }
 
     this.log("[processUserInput]:", userInput);
     this.conversationHistory.push({ role: "user", content: userInput });
 
-    const parsedParametersResponse: ChatCompletionMessage = await this.callTool(
-      [
-        {
-          role: "system",
-          content:
-            "NEVER ask the user to provide the parameters. Only specify parameters that were provided. All of the parameters ARE optional!!!",
-        },
-        { role: "user", content: userInput },
-      ],
-      [this.mkProvideParametersTool()],
-    );
+    // first, try to parse some data
+    const parsedParametersResponse: ChatCompletionMessage =
+      await this.callCompletion(
+        [
+          {
+            role: "system",
+            content:
+              "NEVER ask the user to provide the parameters. Only specify parameters that were provided. All of the parameters ARE optional!!!",
+          },
+          { role: "user", content: userInput },
+        ],
+        [this.mkProvideParametersTool()],
+      );
     this.log("[parsedParametersResponse]", parsedParametersResponse);
     parsedParametersResponse.content = parsedParametersResponse.content || "";
-    await this.handleParametersResponse(parsedParametersResponse);
-    return parsedParametersResponse;
+    const newParameterOptions = await this.handleParametersResponse(
+      parsedParametersResponse,
+    );
+
+    if (!parsedParametersResponse.content || newParameterOptions === null) {
+      // content was not provided, we are dealing with a parameter update tool call.
+      // Call the LLM once more to prompt the user to provide more info.
+      const conversationalResponse: ChatCompletionMessage =
+        await this.callCompletion(
+          this.conversationHistory.concat([
+            {
+              role: "system",
+              content:
+                "Use the tool schema to prompt the user to provide the next parameter.",
+            },
+          ]),
+          [this.mkAskForParametersTool()],
+          // never actually call the tool
+          "none",
+        );
+      this.log("[conversationalResponse]", conversationalResponse);
+      return conversationalResponse;
+    } else {
+      return parsedParametersResponse;
+    }
   }
 
   async handleParametersResponse(
@@ -332,11 +384,7 @@ export class DynamicApiAgent {
       } else {
         this.log("not dispatching yet");
       }
-
-      if (newParameterOptions !== null) {
-        this.parameterOptions = newParameterOptions;
-      }
-
+      this.parameterOptions = newParameterOptions;
       return newParameterOptions;
     } else {
       this.log(
@@ -364,15 +412,16 @@ export class DynamicApiAgent {
     }
   }
 
-  async callTool(
+  async callCompletion(
     messages: ChatCompletionMessageParam[],
     tools: ChatCompletionTool[],
+    tool_choice: ChatCompletionToolChoiceOption = "auto",
   ): Promise<ChatCompletionMessage> {
     const response = await this.openai.chat.completions.create({
       model: "gpt-4o",
       messages,
       tools,
-      tool_choice: "auto",
+      tool_choice,
     });
     return response.choices[0].message;
   }
@@ -381,7 +430,7 @@ export class DynamicApiAgent {
     this.conversationHistory = [
       {
         role: "system",
-        content: `You are an assistant that provides access to blockchain lending and borrowing functionalities via Ember SDK. Never respond in markdown, always use plain text. Never add links to your response. Do not suggest the user to ask questions. When an unknown error happens, do not try to guess the error reason.`,
+        content: `You are a helpful assistant that provides access to blockchain lending and borrowing functionalities via Ember SDK. Never respond in markdown, always use plain text. Never add links to your response. Do not suggest the user to ask questions. When an unknown error happens, do not try to guess the error reason. Be succint. Use bullet lists to enumerate options.`,
       },
     ];
 
