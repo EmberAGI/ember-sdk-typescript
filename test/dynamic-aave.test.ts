@@ -56,6 +56,22 @@ describe("AAVE Dynamic API agent", function () {
     await agent.stop();
   });
 
+  it("conflicting data options", async function () {
+    llmLendingTool.log = async () => {};
+    dataProvider = new MockLendingToolDataProvider({
+      WETH: ["Arbitrum", "Base", "Ethereum"],
+      WBTC: ["Arbitrum", "Ethereum"],
+      ARB: ["Arbitrum"],
+    });
+    agent = new DynamicApiAgent(dataProvider, llmLendingTool);
+    agent.log = async () => {};
+    await agent.processUserInput("I want to borrow some ARB on base");
+    expect(agent.payload.specifiedChainName).to.be.null;
+    expect(agent.payload.specifiedTokenName).to.be.null;
+    expect(agent.payload.amount).to.be.null;
+    await agent.stop();
+  });
+
   it("overriding a choice works", async function () {
     llmLendingTool.log = async () => {};
     agent = new DynamicApiAgent(dataProvider, llmLendingTool);

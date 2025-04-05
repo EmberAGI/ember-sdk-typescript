@@ -97,6 +97,10 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
                   enum: variants,
                   description: `The ${paramName} the user wants to use.`,
                 },
+                [paramName + "_matched"]: {
+                  type: "boolean",
+                  description: `Whether the provided ${paramName} value matched one of the available options closely.`,
+                },
               },
               required: [paramName],
             },
@@ -110,6 +114,10 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
     try {
       const message = response.choices[0].message;
       const args = JSON.parse(message.tool_calls[0].function.arguments);
+      if (!args[paramName + "_matched"]) {
+        this.log(`[${functionName}]: refusing, not matched with anything`);
+        return null;
+      }
       this.log(`[${functionName}]: response: ${args[paramName]}`);
       return args[paramName];
     } catch (_e) {
@@ -297,11 +305,15 @@ export class DynamicApiAgent {
       );
     this.log("[parsedParametersResponse]", parsedParametersResponse);
     parsedParametersResponse.content = parsedParametersResponse.content || "";
-    const newParameterOptions = await this.handleParametersResponse(
+    const response = await this.handleParametersResponse(
       parsedParametersResponse,
     );
 
-    if (!parsedParametersResponse.content || newParameterOptions === null) {
+    if (
+      !parsedParametersResponse.content ||
+      response === null ||
+      response == "refusal"
+    ) {
       // content was not provided, we are dealing with a parameter update tool call.
       // Call the LLM once more to prompt the user to provide more info.
       const conversationalResponse: ChatCompletionMessage =
@@ -310,7 +322,10 @@ export class DynamicApiAgent {
             {
               role: "system",
               content:
-                "Use the tool schema to prompt the user to provide the next parameter.",
+                (response === "refusal"
+                  ? "It's impossible to satisfy user's request, because the parameter that was provided by the user is not valid for the requested action. Apologise, tell the user his parameter is impossible to use, and then "
+                  : "") +
+                "use the tool schema to prompt the user to provide the parameter. list available options if possible. ",
             },
           ]),
           [this.mkAskForParametersTool()],
@@ -326,7 +341,7 @@ export class DynamicApiAgent {
 
   async handleParametersResponse(
     message: ChatCompletionMessage,
-  ): Promise<ParameterOptions | null> {
+  ): Promise<ParameterOptions | "refusal" | null> {
     if (message.tool_calls?.length) {
       // merge parameters from multiple tool calls first, because we don't want to
       // roundtrip to the server more than once
@@ -363,12 +378,15 @@ export class DynamicApiAgent {
         this.payload.providedTokenName = args.tokenName;
       }
 
-      const { parameterOptions: newParameterOptions, payload: updatedPayload } =
-        await handleChatMessage(
-          this.dataProvider,
-          this.llmLendingTool,
-          this.payload,
-        );
+      const {
+        parameterOptions: newParameterOptions,
+        payload: updatedPayload,
+        refusal,
+      } = await handleChatMessage(
+        this.dataProvider,
+        this.llmLendingTool,
+        this.payload,
+      );
 
       this.log("message", message);
       this.log("newParameterOptions", newParameterOptions);
@@ -385,6 +403,22 @@ export class DynamicApiAgent {
         this.log("not dispatching yet");
       }
       this.parameterOptions = newParameterOptions;
+
+      if (refusal) {
+        if (newParameterOptions.chainOptions) {
+          this.payload.providedChainName = null;
+          this.payload.specifiedChainName = null;
+        }
+        if (newParameterOptions.tokenOptions) {
+          this.payload.providedTokenName = null;
+          this.payload.specifiedTokenName = null;
+        }
+        if (newParameterOptions.toolOptions) {
+          this.payload.tool = null;
+        }
+        return "refusal";
+      }
+
       return newParameterOptions;
     } else {
       this.log(
@@ -430,7 +464,7 @@ export class DynamicApiAgent {
     this.conversationHistory = [
       {
         role: "system",
-        content: `You are a helpful assistant that provides access to blockchain lending and borrowing functionalities via Ember SDK. Never respond in markdown, always use plain text. Never add links to your response. Do not suggest the user to ask questions. When an unknown error happens, do not try to guess the error reason. Be succint. Use bullet lists to enumerate options.`,
+        content: `You are a helpful assistant that provides access to blockchain lending and borrowing functionalities via Ember SDK. Never respond in markdown, always use plain text. Never add links to your response. Do not suggest the user to ask questions. When an unknown error happens, do not try to guess the error reason. Be succint. Use bullet lists to enumerate options. Never enclose token names in quotes.`,
       },
     ];
 
