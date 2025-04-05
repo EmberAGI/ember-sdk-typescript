@@ -74,7 +74,7 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
     paramName: string,
     variants: T[],
   ): Promise<T | null> {
-    this.log(`[${functionName}]: ${prompt}`);
+    this.log(`[${functionName}]: ${prompt}, (options: ${JSON.stringify(variants)})`);
     const response = await this.openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -88,7 +88,7 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
           type: "function",
           function: {
             name: functionName,
-            description: `Determine which ${paramName} the user wants to use.`,
+            description: `Determine which ${paramName} the user wants to use. If there is no option that matches, do not use the tool.`,
             parameters: {
               type: "object",
               properties: {
@@ -97,12 +97,8 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
                   enum: variants,
                   description: `The ${paramName} the user wants to use.`,
                 },
-                [paramName + "_matched"]: {
-                  type: "boolean",
-                  description: `Whether the provided ${paramName} value matched one of the available options closely.`,
-                },
               },
-              required: [paramName],
+              required: [],
             },
           },
         },
@@ -114,13 +110,14 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
     try {
       const message = response.choices[0].message;
       const args = JSON.parse(message.tool_calls[0].function.arguments);
-      if (!args[paramName + "_matched"]) {
-        this.log(`[${functionName}]: refusing, not matched with anything`);
+      if (typeof args[paramName] === 'undefined') {
+        this.log(`[${functionName}]: no suitable option`);
         return null;
       }
       this.log(`[${functionName}]: response: ${args[paramName]}`);
       return args[paramName];
     } catch (_e) {
+      this.log(`[${functionName}]: no suitable option`);
       return null;
     }
   }
@@ -405,17 +402,8 @@ export class DynamicApiAgent {
       this.parameterOptions = newParameterOptions;
 
       if (refusal) {
-        if (newParameterOptions.chainOptions) {
-          this.payload.providedChainName = null;
-          this.payload.specifiedChainName = null;
-        }
-        if (newParameterOptions.tokenOptions) {
-          this.payload.providedTokenName = null;
-          this.payload.specifiedTokenName = null;
-        }
-        if (newParameterOptions.toolOptions) {
-          this.payload.tool = null;
-        }
+        this.resetPayload();
+        this.log('[handleParametersResponse]: the server refused this configuration of parameters in the payload as invalid.');
         return "refusal";
       }
 
