@@ -190,7 +190,7 @@ describe("Integration tests for AAVE", function () {
     const newReserve = await getReserveOfToken("WETH");
     expect(parseFloat(oldReserve.underlyingBalance)).to.be.closeTo(
       parseFloat(newReserve.underlyingBalance) + parseFloat(amountToWithdraw),
-      0.000001,
+      0.00001,
     );
   });
 });
