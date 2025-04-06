@@ -28,7 +28,8 @@ const provideParametersTool: ChatCompletionTool = {
   type: "function",
   function: {
     name: "provide_parameters",
-    description: "Read some parameters from the given user message.",
+    description:
+      "Read some parameters from the given user message. If there is not enough info to fill all the parameters, only fill the provided ones and YOU MUST PROCEED WITHOUT ASKING.",
     parameters: {
       type: "object",
       properties: {
@@ -185,7 +186,7 @@ export class DynamicApiAAVEAgent {
           {
             role: "system",
             content:
-              "NEVER ask the user to provide the parameters. Only specify parameters that were provided. All of the parameters ARE optional!!!",
+              "NEVER ask the user to provide the parameters. Only specify parameters that were provided. All of the parameters ARE optional!!! If there is not enough info to fill all the parameters, only fill them partially.",
           },
           { role: "user", content: userInput },
         ],

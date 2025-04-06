@@ -8,9 +8,11 @@ import {
 
 export class LLMLendingToolOpenAI implements LLMLendingTool {
   private openai: OpenAI;
+  private MAX_ATTEMPTS: number;
 
-  constructor() {
+  constructor(MAX_ATTEMPTS = 3) {
     this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    this.MAX_ATTEMPTS = MAX_ATTEMPTS;
   }
 
   public async log(...args: unknown[]) {
@@ -26,6 +28,30 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
   }
 
   private async specifyValue<T>(
+    prompt: string,
+    functionName: string,
+    paramName: string,
+    variants: T[],
+  ): Promise<T | null> {
+    for (let attempt = 0; attempt < this.MAX_ATTEMPTS; attempt++) {
+      const result: T | null = await this.specifyValueOnce(
+        prompt,
+        functionName,
+        paramName,
+        variants,
+      );
+      if (result === null) {
+        return null;
+      }
+      if (variants.includes(result)) {
+        return result;
+      }
+      this.log("specifyValue: retrying...");
+    }
+    throw new Error("specifyValue: unable to decode value from LLM output");
+  }
+
+  private async specifyValueOnce<T>(
     prompt: string,
     functionName: string,
     paramName: string,
