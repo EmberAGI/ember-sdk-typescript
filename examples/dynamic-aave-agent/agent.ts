@@ -2,12 +2,10 @@ import util from "util";
 import { OpenAI } from "openai";
 import clone from "clone";
 import {
-  ChainName,
   handleChatMessage,
   LendingToolPayload,
   LendingToolDataProvider,
   LLMLendingTool,
-  TokenName,
   ParameterOptions,
 } from "../../onchain-actions/build/src/services/api/dynamic/aave.js";
 import {
@@ -18,18 +16,27 @@ import {
 } from "openai/resources";
 import readline from "readline";
 
+export type SpecifyParametersCall = {
+  tool?: string;
+  tokenName?: string;
+  chainName?: string;
+  amount?: string;
+};
+
+// Must be in sync with SpecifyParametersCall
 const provideParametersTool: ChatCompletionTool = {
   type: "function",
   function: {
     name: "provide_parameters",
-    description:
-      "Read some parameters for the action from the given user message.",
+    description: "Read some parameters from the given user message.",
     parameters: {
       type: "object",
       properties: {
         tool: {
           type: "string",
-          description: "Action to perform. Optional.",
+          description:
+            "Action to perform, like 'borrow' or 'repay'. Single identifier. Optional.",
+          enum: ["borrow", "repay"],
         },
         tokenName: {
           type: "string",
@@ -49,125 +56,7 @@ const provideParametersTool: ChatCompletionTool = {
   },
 };
 
-export class LLMLendingToolOpenAI implements LLMLendingTool {
-  private openai: OpenAI;
-
-  constructor() {
-    this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  }
-
-  public async log(...args: unknown[]) {
-    console.log(
-      args
-        .map((arg) =>
-          typeof arg === "string"
-            ? arg
-            : util.inspect(arg, { depth: null, colors: true }),
-        )
-        .join(", "),
-    );
-  }
-
-  private async specifyValue<T>(
-    prompt: string,
-    functionName: string,
-    paramName: string,
-    variants: T[],
-  ): Promise<T | null> {
-    this.log(
-      `[${functionName}]: ${prompt}, (options: ${JSON.stringify(variants)})`,
-    );
-    const response = await this.openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      tools: [
-        {
-          type: "function",
-          function: {
-            name: functionName,
-            description: `Determine which ${paramName} the user wants to use. If there is no option that matches, do not use the tool.`,
-            parameters: {
-              type: "object",
-              properties: {
-                [paramName]: {
-                  type: "string",
-                  enum: variants,
-                  description: `The ${paramName} the user wants to use.`,
-                },
-              },
-              required: [],
-            },
-          },
-        },
-      ],
-      tool_choice: "auto",
-    });
-
-    // TODO: handle the case with 0 or many tool calls
-    try {
-      const message = response.choices[0].message;
-      const args = JSON.parse(message.tool_calls[0].function.arguments);
-      if (typeof args[paramName] === "undefined") {
-        this.log(`[${functionName}]: no suitable option`);
-        return null;
-      }
-      this.log(`[${functionName}]: response: ${args[paramName]}`);
-      return args[paramName];
-    } catch (_e) {
-      this.log(`[${functionName}]: no suitable option`);
-      return null;
-    }
-  }
-
-  async specifyTokenName(
-    tokenName: TokenName,
-    variants: TokenName[],
-  ): Promise<TokenName | null> {
-    return this.specifyValue(
-      "Determine which token is this: " + tokenName,
-      "detect_token_name",
-      "tokenName",
-      variants,
-    );
-  }
-
-  async specifyChainName(
-    chainName: ChainName,
-    variants: ChainName[],
-  ): Promise<ChainName | null> {
-    return this.specifyValue(
-      "Determine which chain name is this: " + chainName,
-      "detect_chain_name",
-      "chainName",
-      variants,
-    );
-  }
-}
-
-export class MockLendingToolDataProvider implements LendingToolDataProvider {
-  constructor(public tokenNames: Record<TokenName, ChainName[]>) {}
-
-  async getAvailableTokenNames(): Promise<TokenName[]> {
-    return [...Object.keys(this.tokenNames)];
-  }
-
-  async getAvailableChainNamesForToken(token: TokenName): Promise<ChainName[]> {
-    return this.tokenNames[token];
-  }
-}
-
-export type SpecifyParametersCall = {
-  tool?: string;
-  tokenName?: string;
-  chainName?: string;
-  amount?: string;
-};
-
+// Must correspond to the real tool schema
 export type LendingToolParameters = {
   tool: "borrow" | "repay";
   tokenName: string;
@@ -175,7 +64,7 @@ export type LendingToolParameters = {
   amount: string;
 };
 
-export class DynamicApiAgent {
+export class DynamicApiAAVEAgent {
   public parameterOptions: ParameterOptions | null = null;
   public conversationHistory: ChatCompletionMessageParam[] = [];
   private initialized = false;

@@ -1,9 +1,6 @@
 import * as dotenv from "dotenv";
-import {
-  MockLendingToolDataProvider,
-  LLMLendingToolOpenAI,
-  DynamicApiAgent,
-} from "./agent";
+import { MockLendingToolDataProvider, DynamicApiAAVEAgent } from "./agent";
+import { LLMLendingToolOpenAI } from "./llm-lending-tool";
 
 dotenv.config();
 
@@ -16,7 +13,7 @@ async function main() {
 
   const llmLendingTool = new LLMLendingToolOpenAI();
 
-  const agent = new DynamicApiAgent(dataProvider, llmLendingTool);
+  const agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
 
   await agent.start();
 }

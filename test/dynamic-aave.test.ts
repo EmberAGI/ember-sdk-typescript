@@ -1,11 +1,9 @@
 import { expect } from "chai";
 import dotenv from "dotenv";
 import { LendingToolDataProvider } from "../onchain-actions/build/src/services/api/dynamic/aave.js";
-import {
-  MockLendingToolDataProvider,
-  LLMLendingToolOpenAI,
-  DynamicApiAgent,
-} from "../examples/dynamic-aave-agent/agent";
+import { LLMLendingToolOpenAI } from "../examples/dynamic-aave-agent/llm-lending-tool.ts";
+import { DynamicApiAAVEAgent } from "../examples/dynamic-aave-agent/agent";
+import { MockLendingToolDataProvider } from "../examples/dynamic-aave-agent/data-provider.ts";
 import permutations from "./helpers/permutations";
 
 dotenv.config();
@@ -13,7 +11,7 @@ dotenv.config();
 describe("AAVE Dynamic API agent", function () {
   this.timeout(40_000);
 
-  let agent: DynamicApiAgent;
+  let agent: DynamicApiAAVEAgent;
   let dataProvider: LendingToolDataProvider;
   let llmLendingTool: LLMLendingToolOpenAI;
 
@@ -26,7 +24,7 @@ describe("AAVE Dynamic API agent", function () {
 
     llmLendingTool = new LLMLendingToolOpenAI();
 
-    agent = new DynamicApiAgent(dataProvider, llmLendingTool);
+    agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
     await agent.init();
   });
 
@@ -37,7 +35,7 @@ describe("AAVE Dynamic API agent", function () {
   it("irrelevant messages do not interrupt the flow", async function () {
     llmLendingTool = new LLMLendingToolOpenAI();
     llmLendingTool.log = async () => {};
-    agent = new DynamicApiAgent(dataProvider, llmLendingTool);
+    agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
     agent.log = async () => {};
     let hasDispatched = false;
     agent.dispatch = async (payload) => {
@@ -63,7 +61,7 @@ describe("AAVE Dynamic API agent", function () {
       WBTC: ["Arbitrum", "Ethereum"],
       ARB: ["Arbitrum"],
     });
-    agent = new DynamicApiAgent(dataProvider, llmLendingTool);
+    agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
     agent.log = async () => {};
     await agent.processUserInput("I want to borrow some ARB on base");
     expect(agent.payload.specifiedChainName).to.be.null;
@@ -74,7 +72,7 @@ describe("AAVE Dynamic API agent", function () {
 
   it("overriding a choice works", async function () {
     llmLendingTool.log = async () => {};
-    agent = new DynamicApiAgent(dataProvider, llmLendingTool);
+    agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
     agent.log = async () => {};
     await agent.processUserInput("I want to borrow some weth");
     await agent.processUserInput("I want to borrow on base");
@@ -92,7 +90,7 @@ describe("AAVE Dynamic API agent", function () {
     it("actions", async function () {
       llmLendingTool = new LLMLendingToolOpenAI();
       llmLendingTool.log = async () => {};
-      agent = new DynamicApiAgent(dataProvider, llmLendingTool);
+      agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
       agent.log = async () => {};
       await agent.processUserInput("what can you do?");
 
@@ -106,7 +104,7 @@ describe("AAVE Dynamic API agent", function () {
 
     it("chains", async function () {
       llmLendingTool.log = async () => {};
-      agent = new DynamicApiAgent(dataProvider, llmLendingTool);
+      agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
       agent.log = async () => {};
       await agent.processUserInput("I want to borrow some weth");
 
@@ -120,7 +118,7 @@ describe("AAVE Dynamic API agent", function () {
 
   it("sequence of multiple actions", async function () {
     llmLendingTool.log = async () => {};
-    agent = new DynamicApiAgent(dataProvider, llmLendingTool);
+    agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
     agent.log = async () => {};
 
     // action 1
@@ -185,7 +183,7 @@ describe("AAVE Dynamic API agent", function () {
     permutations(message_parts).forEach((messages) => {
       it("step-by-step flow: " + messages.join(", "), async () => {
         llmLendingTool.log = async () => {};
-        agent = new DynamicApiAgent(dataProvider, llmLendingTool);
+        agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
         agent.log = async () => {};
         let hasDispatched = false;
         agent.dispatch = async (payload) => {
