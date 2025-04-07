@@ -8,7 +8,7 @@ import { AnvilOptions } from "@viem/anvil";
 
 dotenv.config();
 
-export const startEnv = async (useAnvil: bool) => {
+export const startEnv = async (useAnvil: boolean) => {
   const originalRpcUrl = process.env.ETH_RPC_URL;
   if (!originalRpcUrl) throw new Error("No ETH_RPC_URL provided");
 
