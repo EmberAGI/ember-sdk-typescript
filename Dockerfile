@@ -3,6 +3,7 @@ FROM node:20-slim
 # Install protoc and essential build tools
 RUN apt-get update && apt-get install -y \
     protobuf-compiler \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up workspace
