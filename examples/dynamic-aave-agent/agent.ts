@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import chalk from "chalk";
 import util from "util";
 import { OpenAI } from "openai";
 import clone from "clone";
@@ -124,16 +124,16 @@ export class DynamicApiAAVEAgent {
   promptUser() {
     this.rl.question("[user]: ", async (input: string) => {
       const response = await this.processUserInput(input);
-      const params = Object.entries(this.payload)
-        .filter(([_, value]) => value !== null);
+      const params = Object.entries(this.payload).filter(
+        ([_, value]) => value !== null,
+      );
       if (params.length) {
         console.log(
           chalk.bold("[parameters]"),
           "\n",
           params
-            .map(([param, value]) =>
-              chalk.yellowBright(param) + ': ' + value
-            ).join('\n ')
+            .map(([param, value]) => chalk.yellowBright(param) + ": " + value)
+            .join("\n "),
         );
       }
       console.log(chalk.bold("[assistant]"), response.content);

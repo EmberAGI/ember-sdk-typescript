@@ -32,6 +32,19 @@ describe("AAVE Dynamic API agent", function () {
     await agent.stop();
   });
 
+  describe("specifyValue", async function () {
+    it("is case-insensitive", async () => {
+      llmLendingTool = new LLMLendingToolOpenAI();
+      const res = await llmLendingTool.specifyChainName("ethereum", [
+        "Ethereum",
+        "Base",
+        "Optimism",
+        "Solana",
+      ]);
+      expect(res).to.be.equal("Ethereum");
+    });
+  });
+
   it("irrelevant messages do not interrupt the flow", async function () {
     llmLendingTool = new LLMLendingToolOpenAI();
     agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
@@ -70,6 +83,30 @@ describe("AAVE Dynamic API agent", function () {
       "not possible",
       "sorry",
       "apologize",
+      "do not support",
+      "not supported",
+    ]);
+    await agent.stop();
+  });
+
+  it("conflicting data options - 2", async function () {
+    dataProvider = new MockLendingToolDataProvider({
+      WETH: ["Arbitrum", "Base", "Ethereum"],
+      WBTC: ["Arbitrum", "Ethereum"],
+      ARB: ["Arbitrum"],
+    });
+    agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+    const response = await agent.processUserInput("borrow 1 ARB on base");
+    expect(agent.payload.specifiedChainName).to.be.null;
+    expect(agent.payload.specifiedTokenName).to.be.null;
+    expect(agent.payload.amount).to.be.null;
+    expect(response.content).to.include.oneOf([
+      "impossible",
+      "not possible",
+      "sorry",
+      "apologize",
+      "do not support",
+      "not supported",
     ]);
     await agent.stop();
   });

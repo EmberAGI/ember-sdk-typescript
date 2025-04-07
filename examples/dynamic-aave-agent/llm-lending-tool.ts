@@ -32,6 +32,7 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
     functionName: string,
     paramName: string,
     variants: string[],
+    value: string,
   ): Promise<string | null> {
     for (let attempt = 0; attempt < this.MAX_ATTEMPTS; attempt++) {
       const result: string | null = await this.specifyValueOnce(
@@ -39,6 +40,7 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
         functionName,
         paramName,
         variants,
+        value,
       );
       if (result === null) {
         return null;
@@ -56,6 +58,7 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
     functionName: string,
     paramName: string,
     variants: string[],
+    value: string,
   ): Promise<string | null> {
     this.log(
       `[${functionName}]: ${prompt}, (options: ${JSON.stringify(variants)})`,
@@ -63,6 +66,17 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
     const response = await this.openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
+        {
+          role: "system",
+          content: `You are a helpful assistant who tries to guess and normalize business logic parameters the user provides via a chat interface.
+The parameters are provided in natural language, and may contain typos, extra words, and such. You are given a number of options to choose from,
+and you should pick the most suitable value and provide it verbatim, or, in the case it's not clear which value corresponds to the user input, return null.
+If you choose an option, you MUST provide it verbatim, as specified in the schema.
+
+The options are:
+
+- ${variants.join("\n- ")}`,
+        },
         {
           role: "user",
           content: prompt,
@@ -73,7 +87,7 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
           type: "function",
           function: {
             name: functionName,
-            description: `Determine which ${paramName} the user wants to use. If there is no option that matches, do not use the tool.`,
+            description: `Determine which ${paramName} option from the options specified in the schema corresponds the most to "${value}"`,
             parameters: {
               type: "object",
               properties: {
@@ -81,12 +95,13 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
                   oneOf: [
                     {
                       type: "null",
-                      description: "Not recognized",
+                      description:
+                        "Not recognized. If there is no option that corresponds, return null",
                     },
                     {
                       type: "string",
                       enum: variants,
-                      description: `The ${paramName} the user wants to use.`,
+                      description: `The ${paramName} the user wants to use, that corresponds to ${value}.`,
                     },
                   ],
                 },
@@ -120,10 +135,11 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
     variants: TokenName[],
   ): Promise<TokenName | null> {
     return this.specifyValue(
-      "Determine which token is this: " + tokenName,
+      "The user provided the following token name: " + tokenName,
       "detect_token_name",
       "tokenName",
       variants,
+      tokenName,
     );
   }
 
@@ -132,10 +148,11 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
     variants: ChainName[],
   ): Promise<ChainName | null> {
     return this.specifyValue(
-      "Determine which chain name is this: " + chainName,
+      "The user provided the following chain name: " + chainName,
       "detect_chain_name",
       "chainName",
       variants,
+      chainName,
     );
   }
 }
