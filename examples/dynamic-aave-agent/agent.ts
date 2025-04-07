@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import util from "util";
 import { OpenAI } from "openai";
 import clone from "clone";
@@ -123,7 +124,19 @@ export class DynamicApiAAVEAgent {
   promptUser() {
     this.rl.question("[user]: ", async (input: string) => {
       const response = await this.processUserInput(input);
-      console.log("[assistant]:", response.content);
+      const params = Object.entries(this.payload)
+        .filter(([_, value]) => value !== null);
+      if (params.length) {
+        console.log(
+          chalk.bold("[parameters]"),
+          "\n",
+          params
+            .map(([param, value]) =>
+              chalk.yellowBright(param) + ': ' + value
+            ).join('\n ')
+        );
+      }
+      console.log(chalk.bold("[assistant]"), response.content);
       this.promptUser();
     });
   }
@@ -132,6 +145,9 @@ export class DynamicApiAAVEAgent {
   // figure out how to ask the user for more input.
   public mkAskForParametersTool(): ChatCompletionTool {
     const tool = clone(provideParametersTool);
+    tool.function.description =
+      "The parameters that are needed to perform an action";
+    tool.function.name = "ask_for_parameters";
     const { chainOptions, tokenOptions, toolOptions } = this.parameterOptions;
     if (chainOptions !== null) {
       tool.function.parameters.properties.chainName.enum = chainOptions;
@@ -198,7 +214,18 @@ export class DynamicApiAAVEAgent {
       parsedParametersResponse,
     );
 
-    if (
+    if (response === "dispatch") {
+      return await this.callCompletion(
+        this.conversationHistory.concat([
+          {
+            role: "system",
+            content:
+              "Notify the user that the action has been sent for execution",
+          },
+        ]),
+        [],
+      );
+    } else if (
       !parsedParametersResponse.content ||
       response === null ||
       response == "refusal"
@@ -230,7 +257,7 @@ export class DynamicApiAAVEAgent {
 
   async handleParametersResponse(
     message: ChatCompletionMessage,
-  ): Promise<ParameterOptions | "refusal" | null> {
+  ): Promise<ParameterOptions | "refusal" | "dispatch" | null> {
     if (message.tool_calls?.length) {
       // merge parameters from multiple tool calls first, because we don't want to
       // roundtrip to the server more than once
@@ -285,9 +312,11 @@ export class DynamicApiAAVEAgent {
       const finalizedPayload = this.finalizePayload();
       if (finalizedPayload !== null) {
         this.log("dispatching:", finalizedPayload);
+        await this.saveDispatchHistory(finalizedPayload);
         await this.dispatch(finalizedPayload);
         this.resetPayload();
         await this.resetParameterOptions();
+        return "dispatch";
       } else {
         this.log("not dispatching yet");
       }
@@ -308,6 +337,19 @@ export class DynamicApiAAVEAgent {
       );
       return null;
     }
+  }
+
+  public async saveDispatchHistory(
+    payload: LendingToolParameters,
+  ): Promise<void> {
+    this.conversationHistory.push({
+      role: "assistant",
+      content: `Dispatching tool call with these parameters: ${JSON.stringify(payload, null, 2)}`,
+    });
+    this.conversationHistory.push({
+      role: "assistant",
+      content: "Done!",
+    });
   }
 
   private finalizePayload(): LendingToolParameters | null {
@@ -346,7 +388,7 @@ export class DynamicApiAAVEAgent {
     this.conversationHistory = [
       {
         role: "system",
-        content: `You are a helpful assistant that provides access to blockchain lending and borrowing functionalities via Ember SDK. Never respond in markdown, always use plain text. Never add links to your response. Do not suggest the user to ask questions. When an unknown error happens, do not try to guess the error reason. Be succint. Use bullet lists to enumerate options. Never enclose token names in quotes.`,
+        content: `You are a helpful assistant that provides access to blockchain lending and borrowing functionalities via Ember SDK. NEVER respond in markdown, ALWAYS use plain text. Never add links to your response. Do not suggest the user to ask questions. When an unknown error happens, do not try to guess the error reason. Be succint. Use bullet lists to enumerate options. Never enclose token names in quotes.`,
       },
     ];
 

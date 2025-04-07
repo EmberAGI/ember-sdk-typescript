@@ -48,6 +48,9 @@ importers:
       chai:
         specifier: ^5.1.2
         version: 5.1.2
+      chalk:
+        specifier: ^5.4.1
+        version: 5.4.1
       clone:
         specifier: ^2.1.2
         version: 2.1.2

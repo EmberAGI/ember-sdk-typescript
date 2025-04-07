@@ -59,10 +59,18 @@ describe("AAVE Dynamic API agent", function () {
       ARB: ["Arbitrum"],
     });
     agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
-    await agent.processUserInput("I want to borrow some ARB on base");
+    const response = await agent.processUserInput(
+      "I want to borrow some ARB on base",
+    );
     expect(agent.payload.specifiedChainName).to.be.null;
     expect(agent.payload.specifiedTokenName).to.be.null;
     expect(agent.payload.amount).to.be.null;
+    expect(response.content).to.include.oneOf([
+      "impossible",
+      "not possible",
+      "sorry",
+      "apologize",
+    ]);
     await agent.stop();
   });
 

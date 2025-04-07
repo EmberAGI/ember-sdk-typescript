@@ -27,14 +27,14 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
     );
   }
 
-  private async specifyValue<T>(
+  private async specifyValue(
     prompt: string,
     functionName: string,
     paramName: string,
-    variants: T[],
-  ): Promise<T | null> {
+    variants: string[],
+  ): Promise<string | null> {
     for (let attempt = 0; attempt < this.MAX_ATTEMPTS; attempt++) {
-      const result: T | null = await this.specifyValueOnce(
+      const result: string | null = await this.specifyValueOnce(
         prompt,
         functionName,
         paramName,
@@ -51,12 +51,12 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
     throw new Error("specifyValue: unable to decode value from LLM output");
   }
 
-  private async specifyValueOnce<T>(
+  private async specifyValueOnce(
     prompt: string,
     functionName: string,
     paramName: string,
-    variants: T[],
-  ): Promise<T | null> {
+    variants: string[],
+  ): Promise<string | null> {
     this.log(
       `[${functionName}]: ${prompt}, (options: ${JSON.stringify(variants)})`,
     );
@@ -78,9 +78,17 @@ export class LLMLendingToolOpenAI implements LLMLendingTool {
               type: "object",
               properties: {
                 [paramName]: {
-                  type: "string",
-                  enum: variants,
-                  description: `The ${paramName} the user wants to use.`,
+                  oneOf: [
+                    {
+                      type: "null",
+                      description: "Not recognized",
+                    },
+                    {
+                      type: "string",
+                      enum: variants,
+                      description: `The ${paramName} the user wants to use.`,
+                    },
+                  ],
                 },
               },
               required: [],
