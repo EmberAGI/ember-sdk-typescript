@@ -63,13 +63,13 @@ export const startEnv = async (useAnvil: bool) => {
     "compose",
   );
 
-  await runCommand("pnpm install", "install");
+  await runCommand("pnpm install --ignore-workspace", "install");
   try {
     await runCommand("pnpm run dev", "dev", {}, "service running");
   } catch (e) {
     console.error(e);
     throw new Error(
-      "Did you forget to populate .env in the onchain-actions/ folder?\nGo to onchain-actions and fix this problem manually: the goal is to be able to run `pnpm run dev`",
+      "We don't know what the error above is, but `pnpm run dev` can't be started in `onchain-actions`. It may be that you forgot to populate `.env` in the `onchain-actions/` folder?\nGo to `onchain-actions/` and fix this problem manually: the goal is to be able to run `pnpm run dev` from there.",
     );
   }
 
