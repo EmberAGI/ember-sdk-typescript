@@ -65,50 +65,96 @@ describe("AAVE Dynamic API agent", function () {
     await agent.stop();
   });
 
-  it("conflicting data options", async function () {
-    dataProvider = new MockLendingToolDataProvider({
-      WETH: ["Arbitrum", "Base", "Ethereum"],
-      WBTC: ["Arbitrum", "Ethereum"],
-      ARB: ["Arbitrum"],
+  describe("mkProvideParametersTool (agent internal)", async function () {
+    it("Can handle incorrect input properly", async function () {
+      dataProvider = new MockLendingToolDataProvider({
+        WETH: ["Arbitrum", "Base", "Ethereum"],
+        WBTC: ["Arbitrum", "Ethereum"],
+        ARB: ["Arbitrum"],
+      });
+      agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+      agent.parameterOptions!.chainOptions = ["Arbitrum"];
+      const response = await agent.provideParameters("Base chain");
+      expect(
+        JSON.parse(response.tool_calls![0].function.arguments),
+      ).to.be.deep.equal({
+        chainName: null,
+      });
     });
-    agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
-    const response = await agent.processUserInput(
-      "I want to borrow some ARB on base",
-    );
-    expect(agent.payload.specifiedChainName).to.be.null;
-    expect(agent.payload.specifiedTokenName).to.be.null;
-    expect(agent.payload.amount).to.be.null;
-    expect(response.content).to.include.oneOf([
-      "impossible",
-      "not possible",
-      "sorry",
-      "apologize",
-      "do not support",
-      "not supported",
-    ]);
-    await agent.stop();
   });
 
-  it("conflicting data options - 2", async function () {
-    dataProvider = new MockLendingToolDataProvider({
-      WETH: ["Arbitrum", "Base", "Ethereum"],
-      WBTC: ["Arbitrum", "Ethereum"],
-      ARB: ["Arbitrum"],
+  describe("Conflicting parameters must not be called", async function () {
+    it("single step. incomplete but conflicting params must be rejected", async function () {
+      dataProvider = new MockLendingToolDataProvider({
+        WETH: ["Arbitrum", "Base", "Ethereum"],
+        WBTC: ["Arbitrum", "Ethereum"],
+        ARB: ["Arbitrum"],
+      });
+      agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+      const response = await agent.processUserInput(
+        "I want to borrow some ARB on base",
+      );
+      expect(agent.payload.specifiedChainName).to.be.null;
+      expect(agent.payload.specifiedTokenName).to.be.equal("ARB");
+      expect(agent.payload.amount).to.be.null;
+      expect(response.content).to.include.oneOf([
+        "impossible",
+        "not possible",
+        "sorry",
+        "apologize",
+        "do not support",
+        "not supported",
+      ]);
+      await agent.stop();
     });
-    agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
-    const response = await agent.processUserInput("borrow 1 ARB on base");
-    expect(agent.payload.specifiedChainName).to.be.null;
-    expect(agent.payload.specifiedTokenName).to.be.null;
-    expect(agent.payload.amount).to.be.null;
-    expect(response.content).to.include.oneOf([
-      "impossible",
-      "not possible",
-      "sorry",
-      "apologize",
-      "do not support",
-      "not supported",
-    ]);
-    await agent.stop();
+
+    it("single step. complete, but conflicting params must be rejected", async function () {
+      dataProvider = new MockLendingToolDataProvider({
+        WETH: ["Arbitrum", "Base", "Ethereum"],
+        WBTC: ["Arbitrum", "Ethereum"],
+        ARB: ["Arbitrum"],
+      });
+      agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+      let hasDispatched = false;
+      agent.dispatch = async () => {
+        hasDispatched = true;
+      };
+      const response = await agent.processUserInput("borrow 1 ARB on base");
+      expect(agent.payload.specifiedChainName).to.be.null;
+      expect(agent.payload.specifiedTokenName).to.be.equal("ARB");
+      expect(agent.payload.amount).to.be.equal("1");
+      expect(response.content).to.include.oneOf([
+        "impossible",
+        "not possible",
+        "sorry",
+        "apologize",
+        "do not support",
+        "not supported",
+      ]);
+      expect(hasDispatched).to.be.false;
+      await agent.stop();
+    });
+
+    it("two steps, complete, but conflicting params must be rejected", async function () {
+      dataProvider = new MockLendingToolDataProvider({
+        WETH: ["Arbitrum", "Base", "Ethereum"],
+        WBTC: ["Arbitrum", "Ethereum"],
+        ARB: ["Arbitrum"],
+      });
+      agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+      let hasDispatched = false;
+      agent.dispatch = async () => {
+        hasDispatched = true;
+      };
+      const response = await agent.processUserInput("borrow 1 ARB");
+      expect(response.content).to.not.include.oneOf(["base", "Base"]);
+      await agent.processUserInput("on Base");
+      expect(agent.payload.specifiedChainName).to.be.null;
+      expect(agent.payload.specifiedTokenName).to.be.equal("ARB");
+      expect(agent.payload.amount).to.be.equal("1");
+      expect(hasDispatched).to.be.false;
+      await agent.stop();
+    });
   });
 
   it("overriding a choice works", async function () {

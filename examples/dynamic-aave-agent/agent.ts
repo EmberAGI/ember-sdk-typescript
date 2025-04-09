@@ -8,6 +8,7 @@ import {
   LendingToolDataProvider,
   LLMLendingTool,
   ParameterOptions,
+  LendingToolParameter,
 } from "../../onchain-actions/build/src/services/api/dynamic/aave.js";
 import {
   ChatCompletionMessageParam,
@@ -16,6 +17,7 @@ import {
   ChatCompletionToolChoiceOption,
 } from "openai/resources";
 import readline from "readline";
+import { match } from "ts-pattern";
 
 export type SpecifyParametersCall = {
   tool?: string;
@@ -66,8 +68,32 @@ export type LendingToolParameters = {
   amount: string;
 };
 
+export type UpdateParameterOptions = {
+  action: "updateParameterOptions";
+  parameterOptions: ParameterOptions;
+};
+
+export type HandleParameterRefusal = {
+  action: "handleParameterRefusal";
+  refusalParameter: LendingToolParameter;
+};
+
+export type PerformDispatch = {
+  action: "performDispatch";
+};
+
+export type DoNothing = {
+  action: "doNothing";
+};
+
+export type ParametersResponseAction =
+  | UpdateParameterOptions
+  | HandleParameterRefusal
+  | PerformDispatch
+  | DoNothing;
+
 export class DynamicApiAAVEAgent {
-  public parameterOptions: ParameterOptions | null = null;
+  public parameterOptions: ParameterOptions;
   public conversationHistory: ChatCompletionMessageParam[] = [];
   private initialized = false;
   private openai: OpenAI;
@@ -80,6 +106,11 @@ export class DynamicApiAAVEAgent {
     private dataProvider: LendingToolDataProvider,
     private llmLendingTool: LLMLendingTool,
   ) {
+    this.parameterOptions = {
+      tokenOptions: null,
+      chainOptions: null,
+      toolOptions: null,
+    };
     this.resetPayload();
     if (!process.env.OPENAI_API_KEY) {
       throw new Error("OPENAI_API_KEY not set!");
@@ -111,33 +142,56 @@ export class DynamicApiAAVEAgent {
     };
   }
 
-  async start() {
-    await this.init();
-    this.log("Agent started. Type your message below.");
-    this.promptUser();
+  private resetPayloadParameter(param: LendingToolParameter) {
+    match(param)
+      .with("action", () => {
+        this.payload.tool = null;
+      })
+      .with("token name", () => {
+        this.payload.providedTokenName = null;
+        this.payload.specifiedTokenName = null;
+      })
+      .with("chain name", () => {
+        this.payload.providedChainName = null;
+        this.payload.specifiedChainName = null;
+      })
+      .with("amount", () => {
+        this.payload.amount = null;
+      })
+      .exhaustive();
   }
 
-  async stop() {
+  public async start() {
+    await this.init();
+    this.log("Agent started. Type your message below.");
+    while (true) {
+      await this.promptUser();
+    }
+  }
+
+  public async stop() {
     this.rl.close();
   }
 
-  promptUser() {
-    this.rl.question("[user]: ", async (input: string) => {
-      const response = await this.processUserInput(input);
-      const params = Object.entries(this.payload).filter(
-        ([_, value]) => value !== null,
-      );
-      if (params.length) {
-        console.log(
-          chalk.bold("[parameters]"),
-          "\n",
-          params
-            .map(([param, value]) => chalk.yellowBright(param) + ": " + value)
-            .join("\n "),
+  async promptUser(): Promise<void> {
+    return new Promise((resolve) => {
+      this.rl.question("[user]: ", async (input: string) => {
+        const response = await this.processUserInput(input);
+        const params = Object.entries(this.payload).filter(
+          ([_, value]) => value !== null,
         );
-      }
-      console.log(chalk.bold("[assistant]"), response.content);
-      this.promptUser();
+        if (params.length) {
+          console.log(
+            chalk.bold("[parameters]"),
+            "\n",
+            params
+              .map(([param, value]) => chalk.yellowBright(param) + ": " + value)
+              .join("\n "),
+          );
+        }
+        console.log(chalk.bold("[assistant]"), response.content);
+        resolve();
+      });
     });
   }
 
@@ -172,18 +226,64 @@ export class DynamicApiAAVEAgent {
   // returned from the server
   public mkProvideParametersTool(): ChatCompletionTool {
     const tool = clone(provideParametersTool);
+    const mkVariants = (variants: string[], paramName: string) => ({
+      oneOf: [
+        {
+          type: "string",
+          enum: variants,
+          description: `The ${paramName} the user wants to use`,
+        },
+        {
+          type: "null",
+          description:
+            "Not recognized. If there is no option that corresponds to the user input, return null",
+        },
+      ],
+    });
     const { chainOptions, tokenOptions, toolOptions } = this.parameterOptions;
     if (chainOptions !== null) {
-      tool.function.parameters.properties.chainName.enum = chainOptions;
+      tool.function.parameters.properties.chainName = mkVariants(
+        chainOptions,
+        "chain name",
+      );
     }
     if (tokenOptions !== null) {
-      tool.function.parameters.properties.tokenName.enum = tokenOptions;
+      tool.function.parameters.properties.tokenName = mkVariants(
+        tokenOptions,
+        "token name",
+      );
     }
     if (toolOptions !== null) {
-      tool.function.parameters.properties.tool.enum = toolOptions;
+      tool.function.parameters.properties.tool = mkVariants(
+        toolOptions,
+        "action",
+      );
     }
     this.log("[mkProvideParametersTool]:", tool);
     return tool;
+  }
+
+  async provideParameters(userInput: string): Promise<ChatCompletionMessage> {
+    const response = await this.callCompletion(
+      this.conversationHistory.concat([
+        {
+          role: "system",
+          content: `You are a helpful assistant who tries to guess and normalize business logic parameters the user provides via a chat interface.
+The parameters are provided in natural language, and may contain typos. You are given a number of options to choose from,
+and you should pick the most suitable value and provide it verbatim, or, in the case it's not clear which value corresponds to the user input, return null.
+If you choose an option, you MUST provide it verbatim, as specified in the schema.`,
+        },
+        {
+          role: "system",
+          content:
+            "NEVER ask the user to provide the parameters. Only specify parameters that were provided. All of the parameters ARE optional!!! If there is not enough info to fill all the parameters, only fill them partially. You will find user input below. I will tip you $200 for a correct answer - pay attention to nullability",
+        },
+        { role: "user", content: userInput },
+      ]),
+      [this.mkProvideParametersTool()],
+    );
+    this.log("[provideParameters]", response);
+    return response;
   }
 
   async processUserInput(userInput: string): Promise<ChatCompletionMessage> {
@@ -197,25 +297,16 @@ export class DynamicApiAAVEAgent {
 
     // first, try to parse some data
     const parsedParametersResponse: ChatCompletionMessage =
-      await this.callCompletion(
-        [
-          {
-            role: "system",
-            content:
-              "NEVER ask the user to provide the parameters. Only specify parameters that were provided. All of the parameters ARE optional!!! If there is not enough info to fill all the parameters, only fill them partially.",
-          },
-          { role: "user", content: userInput },
-        ],
-        [this.mkProvideParametersTool()],
-      );
-    this.log("[parsedParametersResponse]", parsedParametersResponse);
+      await this.provideParameters(userInput);
+
     parsedParametersResponse.content = parsedParametersResponse.content || "";
+
     const response = await this.handleParametersResponse(
       parsedParametersResponse,
     );
 
-    if (response === "dispatch") {
-      return await this.callCompletion(
+    if (response.action === "performDispatch") {
+      const response = await this.callCompletion(
         this.conversationHistory.concat([
           {
             role: "system",
@@ -225,10 +316,12 @@ export class DynamicApiAAVEAgent {
         ]),
         [],
       );
+      this.conversationHistory.push(response);
+      return response;
     } else if (
       !parsedParametersResponse.content ||
-      response === null ||
-      response == "refusal"
+      response.action === "doNothing" ||
+      response.action == "handleParameterRefusal"
     ) {
       // content was not provided, we are dealing with a parameter update tool call.
       // Call the LLM once more to prompt the user to provide more info.
@@ -237,9 +330,16 @@ export class DynamicApiAAVEAgent {
           this.conversationHistory.concat([
             {
               role: "system",
+              content: `You are a helpful assistant who tries to guess and normalize business logic parameters the user provides via a chat interface.
+The parameters are provided in natural language, and may contain typos. You are given a number of options to choose from,
+and you should pick the most suitable value and provide it verbatim, or, in the case it's not clear which value corresponds to the user input, return null.
+If you choose an option, you MUST provide it verbatim, as specified in the schema.`,
+            },
+            {
+              role: "system",
               content:
-                (response === "refusal"
-                  ? "It's impossible to satisfy user's request, because the parameter that was provided by the user is not valid for the requested action. Apologise, tell the user his parameter is impossible to use, and then "
+                (response.action === "handleParameterRefusal"
+                  ? `It's impossible to satisfy user's request, because the parameter that was provided by the user (${response.refusalParameter}) is not valid for the requested action. Apologise, tell the user his parameter is impossible to use, and then `
                   : "") +
                 "use the tool schema to prompt the user to provide the parameter. list available options if possible. ",
             },
@@ -249,15 +349,17 @@ export class DynamicApiAAVEAgent {
           "none",
         );
       this.log("[conversationalResponse]", conversationalResponse);
+      this.conversationHistory.push(conversationalResponse);
       return conversationalResponse;
     } else {
+      this.conversationHistory.push(parsedParametersResponse);
       return parsedParametersResponse;
     }
   }
 
   async handleParametersResponse(
     message: ChatCompletionMessage,
-  ): Promise<ParameterOptions | "refusal" | "dispatch" | null> {
+  ): Promise<ParametersResponseAction> {
     if (message.tool_calls?.length) {
       // merge parameters from multiple tool calls first, because we don't want to
       // roundtrip to the server more than once
@@ -297,6 +399,7 @@ export class DynamicApiAAVEAgent {
       const {
         parameterOptions: newParameterOptions,
         payload: updatedPayload,
+        refusalParameter,
         refusal,
       } = await handleChatMessage(
         this.dataProvider,
@@ -316,26 +419,29 @@ export class DynamicApiAAVEAgent {
         await this.dispatch(finalizedPayload);
         this.resetPayload();
         await this.resetParameterOptions();
-        return "dispatch";
+        return { action: "performDispatch" };
       } else {
         this.log("not dispatching yet");
       }
       this.parameterOptions = newParameterOptions;
 
       if (refusal) {
-        this.resetPayload();
+        this.resetPayloadParameter(refusalParameter);
         this.log(
           "[handleParametersResponse]: the server refused this configuration of parameters in the payload as invalid.",
         );
-        return "refusal";
+        return { action: "handleParameterRefusal", refusalParameter };
       }
 
-      return newParameterOptions;
+      return {
+        action: "updateParameterOptions",
+        parameterOptions: newParameterOptions,
+      };
     } else {
       this.log(
         "No useful input provided from the user: provide_parameters wasn't called by LLM",
       );
-      return null;
+      return { action: "doNothing" };
     }
   }
 
@@ -384,7 +490,7 @@ export class DynamicApiAAVEAgent {
     return response.choices[0].message;
   }
 
-  async init() {
+  private async init() {
     this.conversationHistory = [
       {
         role: "system",

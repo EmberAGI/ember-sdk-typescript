@@ -30,6 +30,7 @@
     "generate-proto": "pnpm run lint:require-submodule && ./scripts/generate-proto.sh",
     "agent:aave": "npx tsx examples/aave-agent/index.ts",
     "agent:camelot": "npx tsx --no-warnings examples/camelot-agent/index.ts",
+    "agent:dynamic-aave": "npx tsx --no-warnings --tsconfig tsconfig.json examples/dynamic-aave-agent/index.ts",
     "start:anvil": "pnpm run lint:require-submodule && npx tsx test/start-anvil.ts",
     "start:mainnet": "pnpm run lint:require-submodule && npx tsx test/start-mainnet.ts"
   },
