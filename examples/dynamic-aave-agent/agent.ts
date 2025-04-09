@@ -341,7 +341,7 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
                 (response.action === "handleParameterRefusal"
                   ? `It's impossible to satisfy user's request, because the parameter that was provided by the user (${response.refusalParameter}) is not valid for the requested action. Apologise, tell the user his parameter is impossible to use, and then `
                   : "") +
-                "use the tool schema to prompt the user to provide the parameter. list available options if possible. ",
+                "use the tool schema to prompt the user to provide the parameter. list available options if possible. Never ask the user to confirm an action.",
             },
           ]),
           [this.mkAskForParametersTool()],

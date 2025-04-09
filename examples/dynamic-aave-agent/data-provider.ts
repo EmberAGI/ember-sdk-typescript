@@ -14,4 +14,22 @@ export class MockLendingToolDataProvider implements LendingToolDataProvider {
   async getAvailableChainNamesForToken(token: TokenName): Promise<ChainName[]> {
     return this.tokenNames[token];
   }
+
+  async getAvailableTokenNamesForChain(chain: ChainName): Promise<TokenName[]> {
+    const tokenNames: Set<TokenName> = new Set();
+    Object.entries(this.tokenNames).forEach(([tokenName, chainNames]) => {
+      if (chainNames.includes(chain)) {
+        tokenNames.add(tokenName);
+      }
+    });
+    return Array.from(tokenNames);
+  }
+
+  async getAvailableChainNames(): Promise<ChainName[]> {
+    const chainNames: Set<ChainName> = new Set();
+    Object.values(this.tokenNames).forEach((tokenChains) =>
+      tokenChains.forEach((chain) => chainNames.add(chain)),
+    );
+    return Array.from(chainNames);
+  }
 }

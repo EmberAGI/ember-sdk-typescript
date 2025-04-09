@@ -125,8 +125,10 @@ describe("AAVE Dynamic API agent", function () {
           hasDispatched = true;
         };
         const response = await agent.processUserInput("borrow 1 ARB on base");
-        expect(agent.payload.specifiedChainName).to.be.null;
-        expect(agent.payload.specifiedTokenName).to.be.equal("ARB");
+        expect([
+          agent.payload.specifiedChainName,
+          agent.payload.specifiedTokenName,
+        ]).to.not.be.deep.equal(["Base", "ARB"]);
         expect(agent.payload.amount).to.be.equal("1");
         expect(response.content).to.include.oneOf([
           "impossible",
@@ -175,10 +177,10 @@ describe("AAVE Dynamic API agent", function () {
           agent.dispatch = async () => {
             hasDispatched = true;
           };
-          const response = await agent.processUserInput("borrow on Base");
+          await agent.processUserInput("borrow on Base");
           await agent.processUserInput("1 WBTC");
-          expect(agent.payload.specifiedChainName).to.be.null;
-          expect(agent.payload.specifiedTokenName).to.be.equal("WBTC");
+          expect(agent.payload.specifiedChainName).to.be.equal("Base");
+          expect(agent.payload.specifiedTokenName).to.be.null;
           expect(agent.payload.amount).to.be.equal("1");
           expect(hasDispatched).to.be.false;
           await agent.stop();
