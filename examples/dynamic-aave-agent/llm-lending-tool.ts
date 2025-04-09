@@ -94,14 +94,14 @@ The options are:
                 [paramName]: {
                   oneOf: [
                     {
-                      type: "null",
-                      description:
-                        "Not recognized. If there is no option that corresponds, return null",
-                    },
-                    {
                       type: "string",
                       enum: variants,
                       description: `The ${paramName} the user wants to use, that corresponds to ${value}.`,
+                    },
+                    {
+                      type: "null",
+                      description:
+                        "Not recognized. If there is no option that corresponds, return null",
                     },
                   ],
                 },
