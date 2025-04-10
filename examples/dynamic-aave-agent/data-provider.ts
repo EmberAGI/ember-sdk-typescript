@@ -5,31 +5,31 @@ import {
 } from "../../onchain-actions/build/src/services/api/dynamic/aave.js";
 
 export class MockLendingToolDataProvider implements LendingToolDataProvider {
-  constructor(public tokenNames: Record<TokenName, ChainName[]>) {}
+  constructor(public tokens: Record<TokenName, ChainName[]>) {}
 
-  async getAvailableTokenNames(): Promise<TokenName[]> {
-    return [...Object.keys(this.tokenNames)];
+  async getAvailableTokens(): Promise<TokenName[]> {
+    return [...Object.keys(this.tokens)];
   }
 
-  async getAvailableChainNamesForToken(token: TokenName): Promise<ChainName[]> {
-    return this.tokenNames[token];
+  async getAvailableChainsForToken(token: TokenName): Promise<ChainName[]> {
+    return this.tokens[token];
   }
 
-  async getAvailableTokenNamesForChain(chain: ChainName): Promise<TokenName[]> {
-    const tokenNames: Set<TokenName> = new Set();
-    Object.entries(this.tokenNames).forEach(([tokenName, chainNames]) => {
-      if (chainNames.includes(chain)) {
-        tokenNames.add(tokenName);
+  async getAvailableTokensForChain(chain: ChainName): Promise<TokenName[]> {
+    const tokens: Set<TokenName> = new Set();
+    Object.entries(this.tokens).forEach(([tokenName, chains]) => {
+      if (chains.includes(chain)) {
+        tokens.add(tokenName);
       }
     });
-    return Array.from(tokenNames);
+    return Array.from(tokens);
   }
 
-  async getAvailableChainNames(): Promise<ChainName[]> {
-    const chainNames: Set<ChainName> = new Set();
-    Object.values(this.tokenNames).forEach((tokenChains) =>
-      tokenChains.forEach((chain) => chainNames.add(chain)),
+  async getAvailableChains(): Promise<ChainName[]> {
+    const chains: Set<ChainName> = new Set();
+    Object.values(this.tokens).forEach((tokenChains) =>
+      tokenChains.forEach((chain) => chains.add(chain)),
     );
-    return Array.from(chainNames);
+    return Array.from(chains);
   }
 }

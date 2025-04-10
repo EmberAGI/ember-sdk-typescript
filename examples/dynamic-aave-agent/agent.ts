@@ -4,14 +4,18 @@ import { OpenAI } from "openai";
 import clone from "clone";
 import {
   refinePayload,
-  LendingToolPayload,
   LendingToolDataProvider,
   LLMLendingTool,
-  ParameterOptions,
-  LendingToolParameter,
   actionOptions,
   LendingToolAction,
+  actionToAPI,
 } from "../../onchain-actions/build/src/services/api/dynamic/aave.js";
+import {
+  ParameterOptions,
+  LendingToolParameter,
+  LendingToolPayload,
+  DynamicAPIAction,
+} from "@emberai/sdk-typescript";
 import {
   ChatCompletionMessageParam,
   ChatCompletionTool,
@@ -109,9 +113,9 @@ export class DynamicApiAAVEAgent {
     private llmLendingTool: LLMLendingTool,
   ) {
     this.parameterOptions = {
-      tokenOptions: null,
-      chainOptions: null,
-      actionOptions: null,
+      tokenOptions: undefined,
+      chainOptions: undefined,
+      actionOptions: undefined,
     };
     this.resetPayload();
     if (!process.env.OPENAI_API_KEY) {
@@ -135,30 +139,33 @@ export class DynamicApiAAVEAgent {
 
   public resetPayload() {
     this.payload = {
-      action: null,
-      providedTokenName: null,
-      specifiedTokenName: null,
-      providedChainName: null,
-      specifiedChainName: null,
-      amount: null,
+      action: undefined,
+      providedTokenName: undefined,
+      specifiedTokenName: undefined,
+      providedChainName: undefined,
+      specifiedChainName: undefined,
+      amount: undefined,
     };
   }
 
   private resetPayloadParameter(param: LendingToolParameter) {
     match(param)
-      .with("action", () => {
-        this.payload.action = null;
+      .with(LendingToolParameter.ACTION, () => {
+        this.payload.action = undefined;
       })
-      .with("token name", () => {
-        this.payload.providedTokenName = null;
-        this.payload.specifiedTokenName = null;
+      .with(LendingToolParameter.TOKEN_NAME, () => {
+        this.payload.providedTokenName = undefined;
+        this.payload.specifiedTokenName = undefined;
       })
-      .with("chain name", () => {
-        this.payload.providedChainName = null;
-        this.payload.specifiedChainName = null;
+      .with(LendingToolParameter.CHAIN_NAME, () => {
+        this.payload.providedChainName = undefined;
+        this.payload.specifiedChainName = undefined;
       })
-      .with("amount", () => {
-        this.payload.amount = null;
+      .with(LendingToolParameter.AMOUNT, () => {
+        this.payload.amount = undefined;
+      })
+      .with(LendingToolParameter.UNRECOGNIZED, () => {
+        // protobuf artifact
       })
       .exhaustive();
   }
@@ -205,18 +212,21 @@ export class DynamicApiAAVEAgent {
       "The parameters that are needed to perform an action";
     tool.function.name = "ask_for_parameters";
     const { chainOptions, tokenOptions, actionOptions } = this.parameterOptions;
-    if (chainOptions !== null) {
-      tool.function.parameters.properties.chainName.enum = chainOptions;
+    if (chainOptions?.chainOptions) {
+      tool.function.parameters.properties.chainName.enum =
+        chainOptions.chainOptions;
     } else {
       delete tool.function.parameters.properties.chainName;
     }
-    if (tokenOptions !== null) {
-      tool.function.parameters.properties.tokenName.enum = tokenOptions;
+    if (tokenOptions?.tokenOptions) {
+      tool.function.parameters.properties.tokenName.enum =
+        tokenOptions.tokenOptions;
     } else {
       delete tool.function.parameters.properties.tokenName;
     }
-    if (actionOptions !== null) {
-      tool.function.parameters.properties.action.enum = actionOptions;
+    if (actionOptions?.actionOptions) {
+      tool.function.parameters.properties.action.enum =
+        actionOptions.actionOptions.map(actionFromAPI);
     } else {
       delete tool.function.parameters.properties.action;
     }
@@ -243,21 +253,21 @@ export class DynamicApiAAVEAgent {
       ],
     });
     const { chainOptions, tokenOptions, actionOptions } = this.parameterOptions;
-    if (chainOptions !== null) {
+    if (chainOptions?.chainOptions) {
       tool.function.parameters.properties.chainName = mkVariants(
-        chainOptions,
+        chainOptions.chainOptions,
         "chain name",
       );
     }
-    if (tokenOptions !== null) {
+    if (tokenOptions?.tokenOptions) {
       tool.function.parameters.properties.tokenName = mkVariants(
-        tokenOptions,
+        tokenOptions.tokenOptions,
         "token name",
       );
     }
-    if (actionOptions !== null) {
+    if (actionOptions?.actionOptions) {
       tool.function.parameters.properties.action = mkVariants(
-        actionOptions,
+        actionOptions.actionOptions.map(actionFromAPI),
         "action",
       );
     }
@@ -294,7 +304,7 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
       await this.init();
     }
 
-    this.log("[processUserInput]:", userInput);
+    this.log(chalk.yellowBright("[processUserInput]:"), userInput);
     this.conversationHistory.push({ role: "user", content: userInput });
 
     // first, try to parse some data
@@ -376,8 +386,8 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
 
       this.log("[handleParametersResponse] parsed arguments:", args);
 
-      if (actionOptions.includes(args.action)) {
-        this.payload.action = args.action as LendingToolAction;
+      if (actionOptions.includes(args.action as LendingToolAction)) {
+        this.payload.action = actionToAPI(args.action as LendingToolAction);
       }
 
       if (args.amount) {
@@ -386,14 +396,14 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
 
       if (args.chainName) {
         if (this.payload.providedChainName != args.chainName) {
-          this.payload.specifiedChainName = null;
+          this.payload.specifiedChainName = undefined;
         }
         this.payload.providedChainName = args.chainName;
       }
 
       if (args.tokenName) {
         if (this.payload.providedTokenName != args.tokenName) {
-          this.payload.specifiedTokenName = null;
+          this.payload.specifiedTokenName = undefined;
         }
         this.payload.providedTokenName = args.tokenName;
       }
@@ -462,16 +472,16 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
 
   private finalizePayload(): LendingToolParameters | null {
     if (
-      this.payload.amount !== null &&
-      this.payload.specifiedChainName !== null &&
-      this.payload.specifiedTokenName !== null &&
-      this.payload.action !== null
+      typeof this.payload.amount !== "undefined" &&
+      typeof this.payload.specifiedChainName !== "undefined" &&
+      typeof this.payload.specifiedTokenName !== "undefined" &&
+      typeof this.payload.action !== "undefined"
     ) {
       return {
         amount: this.payload.amount,
         chainName: this.payload.specifiedChainName,
         tokenName: this.payload.specifiedTokenName,
-        action: this.payload.action,
+        action: actionFromAPI(this.payload.action),
       };
     } else {
       return null;
@@ -517,3 +527,17 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
     );
   }
 }
+
+export const actionFromAPI = (
+  apiAction: DynamicAPIAction,
+): LendingToolAction => {
+  return match(apiAction)
+    .with(DynamicAPIAction.BORROW, () => "borrow")
+    .with(DynamicAPIAction.REPAY, () => "repay")
+    .with(DynamicAPIAction.SUPPLY, () => "supply")
+    .with(DynamicAPIAction.WITHDRAW, () => "withdraw")
+    .with(DynamicAPIAction.UNRECOGNIZED, () => {
+      throw new Error("actionFromAPI: impossible happened");
+    })
+    .exhaustive() as LendingToolAction;
+};
