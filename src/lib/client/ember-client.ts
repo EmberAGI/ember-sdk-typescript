@@ -41,6 +41,10 @@ import {
   // TransactionExecution types
   GetProviderTrackingStatusRequest,
   GetProviderTrackingStatusResponse,
+  // DynamicAPI types
+  DynamicAPIClient,
+  RefinePayloadRequest,
+  RefinePayloadResponse,
 } from "../../generated/onchain-actions/onchain_actions.js";
 import { EmberClient } from "../types/client.js";
 
@@ -49,6 +53,7 @@ export class EmberGrpcClient implements EmberClient {
   private walletContextClient: WalletContextClient;
   private createTransactionClient: CreateTransactionClient;
   private transactionExecutionClient: TransactionExecutionClient;
+  private dynamicAPIClient: DynamicAPIClient;
 
   constructor(address: string, options?: Partial<ClientOptions>) {
     // For simplicity we use insecure credentials.
@@ -65,6 +70,7 @@ export class EmberGrpcClient implements EmberClient {
       creds,
       options,
     );
+    this.dynamicAPIClient = new DynamicAPIClient(address, creds, options);
   }
 
   public close(): void {
@@ -367,6 +373,28 @@ export class EmberGrpcClient implements EmberClient {
           err: ServiceError | null,
           response?: GetProviderTrackingStatusResponse,
         ) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
+  // Dynamic API methods
+  refinePayload(
+    request: RefinePayloadRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<RefinePayloadResponse> {
+    return new Promise((resolve, reject) => {
+      this.dynamicAPIClient.refinePayload(
+        request,
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: RefinePayloadResponse) => {
           if (err || !response) {
             reject(err);
           } else {

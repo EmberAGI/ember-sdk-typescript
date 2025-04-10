@@ -15,6 +15,9 @@ import {
   LendingToolParameter,
   LendingToolPayload,
   DynamicAPIAction,
+  RefinePayloadRequest,
+  EmberClient,
+  RefinePayloadResponse,
 } from "@emberai/sdk-typescript";
 import {
   ChatCompletionMessageParam,
@@ -107,10 +110,12 @@ export class DynamicApiAAVEAgent {
   public payload: LendingToolPayload;
   public dispatch: (payload: LendingToolParameters) => Promise<void> =
     async () => {};
+  public refine: (
+    payload: RefinePayloadRequest,
+  ) => Promise<RefinePayloadResponse> = undefined;
 
   constructor(
-    private dataProvider: LendingToolDataProvider,
-    private llmLendingTool: LLMLendingTool,
+    refine: (payload: RefinePayloadRequest) => Promise<RefinePayloadResponse>,
   ) {
     this.parameterOptions = {
       tokenOptions: undefined,
@@ -126,14 +131,34 @@ export class DynamicApiAAVEAgent {
       input: process.stdin,
       output: process.stdout,
     });
+    this.refine = refine;
+  }
+
+  static newMock(
+    dataProvider: LendingToolDataProvider,
+    llmLendingTool: LLMLendingTool,
+  ) {
+    return new DynamicApiAAVEAgent(async function (
+      request: RefinePayloadRequest,
+    ): Promise<RefinePayloadResponse> {
+      return await refinePayload(
+        dataProvider,
+        llmLendingTool,
+        request.payload!,
+      );
+    });
+  }
+
+  static newUsingEmberClient(client: EmberClient) {
+    return new DynamicApiAAVEAgent(async function (
+      request: RefinePayloadRequest,
+    ): Promise<RefinePayloadResponse> {
+      return await client.refinePayload(request);
+    });
   }
 
   public async resetParameterOptions() {
-    const { parameterOptions } = await refinePayload(
-      this.dataProvider,
-      this.llmLendingTool,
-      this.payload,
-    );
+    const { parameterOptions } = await this.refine({ payload: this.payload });
     this.parameterOptions = parameterOptions;
   }
 
@@ -345,7 +370,7 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
               content: `You are a helpful assistant who tries to guess and normalize business logic parameters the user provides via a chat interface.
 The parameters are provided in natural language, and may contain typos. You are given a number of options to choose from,
 and you should pick the most suitable value and provide it verbatim, or, in the case it's not clear which value corresponds to the user input, return null.
-If you choose an option, you MUST provide it verbatim, as specified in the schema.`,
+If you choose an option, you MUST provide it verbatim, as specified in the schema. NEVER ask the user to confirm their choice.`,
             },
             {
               role: "system",
@@ -353,7 +378,7 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
                 (response.action === "handleParameterRefusal"
                   ? `It's impossible to satisfy user's request, because the parameter that was provided by the user (${response.refusalParameter}) is not valid for the requested action. Apologise, tell the user his parameter is impossible to use, and then `
                   : "") +
-                "use the tool schema to prompt the user to provide the parameter. list available options if possible. Never ask the user to confirm an action.",
+                "use the tool schema to prompt the user to provide the parameter. list available options if possible. NEVER ask the user to confirm an action.",
             },
           ]),
           [this.mkAskForParametersTool()],
@@ -413,11 +438,7 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
         payload: updatedPayload,
         refusalParameter,
         refusal,
-      } = await refinePayload(
-        this.dataProvider,
-        this.llmLendingTool,
-        this.payload,
-      );
+      } = await this.refine({ payload: this.payload });
 
       this.log("message", message);
       this.log("newParameterOptions", newParameterOptions);

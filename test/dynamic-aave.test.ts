@@ -18,6 +18,21 @@ describe("AAVE Dynamic API agent", function () {
   let dataProvider: LendingToolDataProvider;
   let llmLendingTool: LLMLendingToolOpenAI;
 
+  function newAgent(params?: {
+    dataProvider?: LendingToolDataProvider;
+    llmLendingTool?: LLMLendingToolOpenAI;
+  }) {
+    const dataProvider =
+      params?.dataProvider ||
+      new MockLendingToolDataProvider({
+        WETH: ["Arbitrum", "Base", "Ethereum"],
+        WBTC: ["Arbitrum", "Ethereum"],
+        ARB: ["Arbitrum"],
+      });
+    const llmLendingTool = params?.llmLendingTool || new LLMLendingToolOpenAI();
+    return DynamicApiAAVEAgent.newMock(dataProvider, llmLendingTool);
+  }
+
   this.beforeAll(async () => {
     dataProvider = new MockLendingToolDataProvider({
       WETH: ["Arbitrum", "Base", "Ethereum"],
@@ -27,7 +42,7 @@ describe("AAVE Dynamic API agent", function () {
 
     llmLendingTool = new LLMLendingToolOpenAI();
 
-    agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+    agent = newAgent({ dataProvider, llmLendingTool });
   });
 
   this.afterAll(async () => {
@@ -52,8 +67,7 @@ describe("AAVE Dynamic API agent", function () {
   });
 
   it("irrelevant messages do not interrupt the flow", async function () {
-    llmLendingTool = new LLMLendingToolOpenAI();
-    agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+    agent = newAgent();
     let hasDispatched = false;
     agent.dispatch = async (payload) => {
       hasDispatched = true;
@@ -78,7 +92,7 @@ describe("AAVE Dynamic API agent", function () {
         WBTC: ["Arbitrum", "Ethereum"],
         ARB: ["Arbitrum"],
       });
-      agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+      agent = newAgent({ dataProvider, llmLendingTool });
       agent.parameterOptions.chainOptions = { chainOptions: ["Arbitrum"] };
       const response = await agent.provideParameters("Base chain");
       expect(
@@ -97,7 +111,7 @@ describe("AAVE Dynamic API agent", function () {
           WBTC: ["Arbitrum", "Ethereum"],
           ARB: ["Arbitrum"],
         });
-        agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+        agent = newAgent({ dataProvider, llmLendingTool });
         const response = await agent.processUserInput(
           "I want to borrow some ARB on base",
         );
@@ -121,7 +135,7 @@ describe("AAVE Dynamic API agent", function () {
           WBTC: ["Arbitrum", "Ethereum"],
           ARB: ["Arbitrum"],
         });
-        agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+        agent = newAgent({ dataProvider, llmLendingTool });
         let hasDispatched = false;
         agent.dispatch = async () => {
           hasDispatched = true;
@@ -153,7 +167,7 @@ describe("AAVE Dynamic API agent", function () {
             WBTC: ["Arbitrum", "Ethereum"],
             ARB: ["Arbitrum"],
           });
-          agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+          agent = newAgent({ dataProvider, llmLendingTool });
           let hasDispatched = false;
           agent.dispatch = async () => {
             hasDispatched = true;
@@ -174,7 +188,7 @@ describe("AAVE Dynamic API agent", function () {
             WBTC: ["Arbitrum", "Ethereum"],
             ARB: ["Arbitrum"],
           });
-          agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+          agent = newAgent({ dataProvider, llmLendingTool });
           let hasDispatched = false;
           agent.dispatch = async () => {
             hasDispatched = true;
@@ -192,7 +206,7 @@ describe("AAVE Dynamic API agent", function () {
   });
 
   it("overriding a choice works", async function () {
-    agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+    agent = newAgent();
     await agent.processUserInput("I want to borrow some weth");
     await agent.processUserInput("I want to borrow on base");
     await agent.processUserInput("actually I want to borrow WBTC");
@@ -222,8 +236,7 @@ describe("AAVE Dynamic API agent", function () {
 
   describe("options are visible to the user", () => {
     it("actions", async function () {
-      llmLendingTool = new LLMLendingToolOpenAI();
-      agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+      agent = newAgent();
       await agent.processUserInput("what can you do?");
 
       expect(agent.parameterOptions?.chainOptions).to.be.deep.equal(undefined);
@@ -234,7 +247,7 @@ describe("AAVE Dynamic API agent", function () {
     });
 
     it("chains", async function () {
-      agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+      agent = newAgent();
       await agent.processUserInput("I want to borrow some weth");
 
       expect(
@@ -245,7 +258,7 @@ describe("AAVE Dynamic API agent", function () {
     });
   });
 
-  it("sequence of multiple actions", async function () {
+  it("sequence of two actions", async function () {
     // action 1
     await agent.processUserInput("I want to borrow some weth");
     expect(agent.payload.action).to.be.equal("BORROW");
@@ -293,7 +306,7 @@ describe("AAVE Dynamic API agent", function () {
     const message_parts = ["borrow", "use ethereum chain", "1.2 of weth"];
     permutations(message_parts).forEach((messages) => {
       it("step-by-step flow: " + messages.join(", "), async () => {
-        agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+        agent = newAgent();
         let hasDispatched = false;
         agent.dispatch = async (payload) => {
           hasDispatched = true;
