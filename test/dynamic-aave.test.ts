@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import dotenv from "dotenv";
-import { LendingToolDataProvider } from "../onchain-actions/build/src/services/api/dynamic/aave.js";
+import { actionOptions, LendingToolDataProvider } from "../onchain-actions/build/src/services/api/dynamic/aave.js";
 import { LLMLendingToolOpenAI } from "../examples/dynamic-aave-agent/llm-lending-tool.ts";
 import { DynamicApiAAVEAgent } from "../examples/dynamic-aave-agent/agent";
 import { MockLendingToolDataProvider } from "../examples/dynamic-aave-agent/data-provider.ts";
@@ -25,7 +25,6 @@ describe("AAVE Dynamic API agent", function () {
     llmLendingTool = new LLMLendingToolOpenAI();
 
     agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
-    await agent.init();
   });
 
   this.afterAll(async () => {
@@ -55,7 +54,7 @@ describe("AAVE Dynamic API agent", function () {
     let hasDispatched = false;
     agent.dispatch = async (payload) => {
       hasDispatched = true;
-      expect(payload.tool).to.be.equal("borrow");
+      expect(payload.action).to.be.equal("borrow");
       expect(payload.chainName).to.be.equal("Base");
       expect(payload.tokenName).to.be.equal("WETH");
       expect(payload.amount).to.be.equal("1.2");
@@ -196,7 +195,7 @@ describe("AAVE Dynamic API agent", function () {
     await agent.processUserInput("actually I want to borrow WBTC");
     await agent.processUserInput("actually I want to borrow it on Arbitrum");
     await agent.processUserInput("actually I want to repay it, not borrow");
-    expect(agent.payload.tool).to.be.equal("repay");
+    expect(agent.payload.action).to.be.equal("repay");
     expect(agent.payload.specifiedChainName).to.be.equal("Arbitrum");
     expect(agent.payload.specifiedTokenName).to.be.equal("WBTC");
     expect(agent.payload.amount).to.be.null;
@@ -211,10 +210,7 @@ describe("AAVE Dynamic API agent", function () {
 
       expect(agent.parameterOptions?.chainOptions).to.be.deep.equal(null);
       expect(agent.parameterOptions?.tokenOptions).to.be.deep.equal(null);
-      expect(agent.parameterOptions?.toolOptions).to.be.deep.equal([
-        "borrow",
-        "repay",
-      ]);
+      expect(agent.parameterOptions?.actionOptions).to.be.deep.equal(actionOptions);
     });
 
     it("chains", async function () {
@@ -225,7 +221,7 @@ describe("AAVE Dynamic API agent", function () {
         await dataProvider.getAvailableChainNamesForToken("WETH"),
       );
       expect(agent.parameterOptions?.tokenOptions).to.be.deep.equal(null);
-      expect(agent.parameterOptions?.toolOptions).to.be.deep.equal(null);
+      expect(agent.parameterOptions?.actionOptions).to.be.deep.equal(null);
     });
   });
 
@@ -238,21 +234,21 @@ describe("AAVE Dynamic API agent", function () {
     await agent.processUserInput("actually I want to borrow WBTC");
     await agent.processUserInput("actually I want to borrow it on arbitrum");
     await agent.processUserInput("actually I want to repay it, not borrow");
-    expect(agent.payload.tool).to.be.equal("repay");
+    expect(agent.payload.action).to.be.equal("repay");
     expect(agent.payload.specifiedChainName).to.be.equal("Arbitrum");
     expect(agent.payload.specifiedTokenName).to.be.equal("WBTC");
     expect(agent.payload.amount).to.be.null;
     let hasDispatched = false;
     agent.dispatch = async (payload) => {
       hasDispatched = true;
-      expect(payload.tool).to.be.equal("repay");
+      expect(payload.action).to.be.equal("repay");
       expect(payload.chainName).to.be.equal("Arbitrum");
       expect(payload.tokenName).to.be.equal("WBTC");
       expect(payload.amount).to.be.equal("1.2");
     };
     await agent.processUserInput("the amount should be 1.2");
     expect(hasDispatched).to.be.true;
-    expect(agent.payload.tool).to.be.null;
+    expect(agent.payload.action).to.be.null;
     expect(agent.payload.providedChainName).to.be.null;
     expect(agent.payload.specifiedChainName).to.be.null;
     expect(agent.payload.providedTokenName).to.be.null;
@@ -265,21 +261,21 @@ describe("AAVE Dynamic API agent", function () {
     await agent.processUserInput("actually I want to borrow WBTC");
     await agent.processUserInput("actually I want to borrow it on arbitrum");
     await agent.processUserInput("actually I want to repay it, not borrow");
-    expect(agent.payload.tool).to.be.equal("repay");
+    expect(agent.payload.action).to.be.equal("repay");
     expect(agent.payload.specifiedChainName).to.be.equal("Arbitrum");
     expect(agent.payload.specifiedTokenName).to.be.equal("WBTC");
     expect(agent.payload.amount).to.be.null;
     hasDispatched = false;
     agent.dispatch = async (payload) => {
       hasDispatched = true;
-      expect(payload.tool).to.be.equal("repay");
+      expect(payload.action).to.be.equal("repay");
       expect(payload.chainName).to.be.equal("Arbitrum");
       expect(payload.tokenName).to.be.equal("WBTC");
       expect(payload.amount).to.be.equal("1.2");
     };
     await agent.processUserInput("the amount should be 1.2");
     expect(hasDispatched).to.be.true;
-    expect(agent.payload.tool).to.be.null;
+    expect(agent.payload.action).to.be.null;
     expect(agent.payload.providedChainName).to.be.null;
     expect(agent.payload.specifiedChainName).to.be.null;
     expect(agent.payload.providedTokenName).to.be.null;
@@ -297,7 +293,7 @@ describe("AAVE Dynamic API agent", function () {
         let hasDispatched = false;
         agent.dispatch = async (payload) => {
           hasDispatched = true;
-          expect(payload.tool).to.be.equal("borrow");
+          expect(payload.action).to.be.equal("borrow");
           expect(payload.chainName).to.be.equal("Ethereum");
           expect(payload.tokenName).to.be.equal("WETH");
           expect(payload.amount).to.be.equal("1.2");

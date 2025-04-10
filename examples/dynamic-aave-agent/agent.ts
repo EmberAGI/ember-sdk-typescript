@@ -3,12 +3,14 @@ import util from "util";
 import { OpenAI } from "openai";
 import clone from "clone";
 import {
-  handleChatMessage,
+  refinePayload,
   LendingToolPayload,
   LendingToolDataProvider,
   LLMLendingTool,
   ParameterOptions,
   LendingToolParameter,
+  actionOptions,
+  LendingToolAction,
 } from "../../onchain-actions/build/src/services/api/dynamic/aave.js";
 import {
   ChatCompletionMessageParam,
@@ -20,7 +22,7 @@ import readline from "readline";
 import { match } from "ts-pattern";
 
 export type SpecifyParametersCall = {
-  tool?: string;
+  action?: string;
   tokenName?: string;
   chainName?: string;
   amount?: string;
@@ -36,7 +38,7 @@ const provideParametersTool: ChatCompletionTool = {
     parameters: {
       type: "object",
       properties: {
-        tool: {
+        action: {
           type: "string",
           description:
             "Action to perform, like 'borrow' or 'repay'. Single identifier. Optional.",
@@ -62,7 +64,7 @@ const provideParametersTool: ChatCompletionTool = {
 
 // Must correspond to the real tool schema
 export type LendingToolParameters = {
-  tool: "borrow" | "repay";
+  action: LendingToolAction;
   tokenName: string;
   chainName: string;
   amount: string;
@@ -109,7 +111,7 @@ export class DynamicApiAAVEAgent {
     this.parameterOptions = {
       tokenOptions: null,
       chainOptions: null,
-      toolOptions: null,
+      actionOptions: null,
     };
     this.resetPayload();
     if (!process.env.OPENAI_API_KEY) {
@@ -123,7 +125,7 @@ export class DynamicApiAAVEAgent {
   }
 
   public async resetParameterOptions() {
-    const { parameterOptions } = await handleChatMessage(
+    const { parameterOptions } = await refinePayload(
       this.dataProvider,
       this.llmLendingTool,
       this.payload,
@@ -133,7 +135,7 @@ export class DynamicApiAAVEAgent {
 
   public resetPayload() {
     this.payload = {
-      tool: null,
+      action: null,
       providedTokenName: null,
       specifiedTokenName: null,
       providedChainName: null,
@@ -145,7 +147,7 @@ export class DynamicApiAAVEAgent {
   private resetPayloadParameter(param: LendingToolParameter) {
     match(param)
       .with("action", () => {
-        this.payload.tool = null;
+        this.payload.action = null;
       })
       .with("token name", () => {
         this.payload.providedTokenName = null;
@@ -202,7 +204,7 @@ export class DynamicApiAAVEAgent {
     tool.function.description =
       "The parameters that are needed to perform an action";
     tool.function.name = "ask_for_parameters";
-    const { chainOptions, tokenOptions, toolOptions } = this.parameterOptions;
+    const { chainOptions, tokenOptions, actionOptions } = this.parameterOptions;
     if (chainOptions !== null) {
       tool.function.parameters.properties.chainName.enum = chainOptions;
     } else {
@@ -213,10 +215,10 @@ export class DynamicApiAAVEAgent {
     } else {
       delete tool.function.parameters.properties.tokenName;
     }
-    if (toolOptions !== null) {
-      tool.function.parameters.properties.tool.enum = toolOptions;
+    if (actionOptions !== null) {
+      tool.function.parameters.properties.action.enum = actionOptions;
     } else {
-      delete tool.function.parameters.properties.tool;
+      delete tool.function.parameters.properties.action;
     }
     this.log("[mkAskForParametersTool]:", tool);
     return tool;
@@ -240,7 +242,7 @@ export class DynamicApiAAVEAgent {
         },
       ],
     });
-    const { chainOptions, tokenOptions, toolOptions } = this.parameterOptions;
+    const { chainOptions, tokenOptions, actionOptions } = this.parameterOptions;
     if (chainOptions !== null) {
       tool.function.parameters.properties.chainName = mkVariants(
         chainOptions,
@@ -253,9 +255,9 @@ export class DynamicApiAAVEAgent {
         "token name",
       );
     }
-    if (toolOptions !== null) {
-      tool.function.parameters.properties.tool = mkVariants(
-        toolOptions,
+    if (actionOptions !== null) {
+      tool.function.parameters.properties.action = mkVariants(
+        actionOptions,
         "action",
       );
     }
@@ -374,8 +376,8 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
 
       this.log("[handleParametersResponse] parsed arguments:", args);
 
-      if (["borrow", "repay"].includes(args.tool)) {
-        this.payload.tool = args.tool as "borrow" | "repay";
+      if (actionOptions.includes(args.action)) {
+        this.payload.action = args.action as LendingToolAction;
       }
 
       if (args.amount) {
@@ -401,7 +403,7 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
         payload: updatedPayload,
         refusalParameter,
         refusal,
-      } = await handleChatMessage(
+      } = await refinePayload(
         this.dataProvider,
         this.llmLendingTool,
         this.payload,
@@ -463,13 +465,13 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
       this.payload.amount !== null &&
       this.payload.specifiedChainName !== null &&
       this.payload.specifiedTokenName !== null &&
-      this.payload.tool !== null
+      this.payload.action !== null
     ) {
       return {
         amount: this.payload.amount,
         chainName: this.payload.specifiedChainName,
         tokenName: this.payload.specifiedTokenName,
-        tool: this.payload.tool,
+        action: this.payload.action,
       };
     } else {
       return null;
