@@ -252,7 +252,9 @@ describe("AAVE Dynamic API agent", function () {
 
       expect(
         agent.parameterOptions?.chainOptions?.chainOptions,
-      ).to.be.deep.equal(await dataProvider.getAvailableChainsForToken("WETH"));
+      ).to.be.deep.equal(await dataProvider.getAvailableChains({
+        specifiedTokenName: "WETH"
+      }));
       expect(agent.parameterOptions?.tokenOptions).to.be.deep.equal(undefined);
       expect(agent.parameterOptions?.actionOptions).to.be.deep.equal(undefined);
     });

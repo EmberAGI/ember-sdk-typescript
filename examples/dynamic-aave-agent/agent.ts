@@ -400,37 +400,37 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
     if (message.tool_calls?.length) {
       // merge parameters from multiple tool calls first, because we don't want to
       // roundtrip to the server more than once
-      let args: SpecifyParametersCall = {};
+      let params: SpecifyParametersCall = {};
       for (const tool_call of message.tool_calls.reverse()) {
         const argsString: string = tool_call.function.arguments;
-        const parsedArgs = JSON.parse(
+        const parsedParams = JSON.parse(
           argsString || "{}",
         ) as SpecifyParametersCall;
-        args = { ...args, ...parsedArgs };
+        params = { ...params, ...parsedParams };
       }
 
-      this.log("[handleParametersResponse] parsed arguments:", args);
+      this.log("[handleParametersResponse] parsed arguments:", params);
 
-      if (actionOptions.includes(args.action as LendingToolAction)) {
-        this.payload.action = actionToAPI(args.action as LendingToolAction);
+      if (actionOptions.includes(params.action as LendingToolAction)) {
+        this.payload.action = actionToAPI(params.action as LendingToolAction);
       }
 
-      if (args.amount) {
-        this.payload.amount = args.amount;
+      if (params.amount) {
+        this.payload.amount = params.amount;
       }
 
-      if (args.chainName) {
-        if (this.payload.providedChainName != args.chainName) {
+      if (params.chainName) {
+        if (this.payload.providedChainName != params.chainName) {
           this.payload.specifiedChainName = undefined;
         }
-        this.payload.providedChainName = args.chainName;
+        this.payload.providedChainName = params.chainName;
       }
 
-      if (args.tokenName) {
-        if (this.payload.providedTokenName != args.tokenName) {
+      if (params.tokenName) {
+        if (this.payload.providedTokenName != params.tokenName) {
           this.payload.specifiedTokenName = undefined;
         }
-        this.payload.providedTokenName = args.tokenName;
+        this.payload.providedTokenName = params.tokenName;
       }
 
       const {
@@ -443,6 +443,9 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
       this.log("message", message);
       this.log("newParameterOptions", newParameterOptions);
       this.log("updatedPayload", updatedPayload);
+      if (refusal) {
+        this.log("refusalParameter", refusalParameter);
+      }
       this.payload = updatedPayload;
 
       const finalizedPayload = this.finalizePayload();
