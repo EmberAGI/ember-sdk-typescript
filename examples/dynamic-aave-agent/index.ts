@@ -1,24 +1,18 @@
 import * as dotenv from "dotenv";
-import { MockLendingToolDataProvider } from "./data-provider";
 import { DynamicApiAAVEAgent } from "./agent";
-import { LLMLendingToolOpenAI } from "./llm-lending-tool";
 import chalk from "chalk";
+import { EmberGrpcClient } from "@emberai/sdk-typescript";
 
 dotenv.config();
 
 async function main() {
-  const dataProvider = new MockLendingToolDataProvider({
-    WETH: ["Arbitrum", "Base", "Ethereum"],
-    WBTC: ["Arbitrum", "Ethereum"],
-    ARB: ["Arbitrum"],
-  });
-
-  const llmLendingTool = new LLMLendingToolOpenAI();
-
-  const agent = new DynamicApiAAVEAgent(dataProvider, llmLendingTool);
+  const endpoint = process.env.TEST_EMBER_ENDPOINT || (() => {
+    throw new Error("TEST_EMBER_ENDPOINT not set!");
+  })();
+  const client = new EmberGrpcClient(endpoint);
+  const agent = DynamicApiAAVEAgent.newUsingEmberClient(client);
   agent.log = async () => {};
-  llmLendingTool.log = async () => {};
-  agent.dispatch = console.log.bind(console, chalk.green("[dispatching]"));
+  agent.dispatch = console.log.bind(console, chalk.greenBright("[dispatching]"));
   await agent.start();
 }
 

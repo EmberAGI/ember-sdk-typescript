@@ -4,7 +4,7 @@ import {
   actionOptions,
   LendingToolDataProvider,
 } from "../onchain-actions/build/src/services/api/dynamic/aave.js";
-import { LLMLendingToolOpenAI } from "../examples/dynamic-aave-agent/llm-lending-tool.ts";
+import { LLMLendingToolOpenAI } from "../onchain-actions/build/src/services/api/dynamic/llm-lending-tool.js"
 import { DynamicApiAAVEAgent } from "../examples/dynamic-aave-agent/agent";
 import { MockLendingToolDataProvider } from "../examples/dynamic-aave-agent/data-provider.ts";
 import permutations from "./helpers/permutations";
