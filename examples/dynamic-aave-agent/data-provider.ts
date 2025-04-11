@@ -1,3 +1,4 @@
+import { LendingToolPayload } from "@emberai/sdk-typescript";
 import {
   ChainName,
   LendingToolDataProvider,
@@ -7,29 +8,32 @@ import {
 export class MockLendingToolDataProvider implements LendingToolDataProvider {
   constructor(public tokens: Record<TokenName, ChainName[]>) {}
 
-  async getAvailableTokens(): Promise<TokenName[]> {
-    return [...Object.keys(this.tokens)];
+  async getAvailableTokens(payload: LendingToolPayload): Promise<TokenName[]> {
+    // If there is a specified chain name, only limit tokens to that chain
+    if (typeof payload.specifiedChainName !== 'undefined') {
+      const tokens: Set<TokenName> = new Set();
+      Object.entries(this.tokens).forEach(([tokenName, chains]) => {
+        if (chains.includes(payload.specifiedChainName)) {
+          tokens.add(tokenName);
+        }
+      });
+      return Array.from(tokens);
+    } else {
+      return [...Object.keys(this.tokens)];
+    }
   }
 
-  async getAvailableChainsForToken(token: TokenName): Promise<ChainName[]> {
-    return this.tokens[token];
-  }
-
-  async getAvailableTokensForChain(chain: ChainName): Promise<TokenName[]> {
-    const tokens: Set<TokenName> = new Set();
-    Object.entries(this.tokens).forEach(([tokenName, chains]) => {
-      if (chains.includes(chain)) {
-        tokens.add(tokenName);
-      }
-    });
-    return Array.from(tokens);
-  }
-
-  async getAvailableChains(): Promise<ChainName[]> {
-    const chains: Set<ChainName> = new Set();
-    Object.values(this.tokens).forEach((tokenChains) =>
-      tokenChains.forEach((chain) => chains.add(chain)),
-    );
-    return Array.from(chains);
+  async getAvailableChains(payload: LendingToolPayload): Promise<ChainName[]> {
+    // If there is a specified token name, only return chains that have it
+    if (typeof payload.specifiedTokenName !== 'undefined') {
+      return this.tokens[payload.specifiedTokenName];
+    } else {
+      const chains: Set<ChainName> = new Set();
+      Object.values(this.tokens).forEach(
+        (tokenChains) =>
+          tokenChains.forEach((chain) => chains.add(chain)),
+      );
+      return Array.from(chains);
+    }
   }
 }
