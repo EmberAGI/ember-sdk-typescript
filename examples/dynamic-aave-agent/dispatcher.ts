@@ -11,7 +11,7 @@ import { match } from "ts-pattern";
 export class DynamicAPIDispatcher implements IDynamicAPIDispatcher {
   constructor(
     private readonly client: EmberClient,
-    private readonly signer: Signer,
+    private readonly signers: Record<number, Signer>,
   ) {}
 
   public async dispatch(
@@ -19,11 +19,16 @@ export class DynamicAPIDispatcher implements IDynamicAPIDispatcher {
     payload: LendingToolParameters,
   ): Promise<void> {
     agent.log("dispatch: payload", payload);
-    const address = await this.signer.getAddress();
     const { token, chain } = await this.client.lookupToken({
       tokenName: payload.tokenName,
       chainName: payload.chainName,
     });
+    const signer = this.signers[chain.chainId];
+    if (!(signer instanceof ethers.Signer)) {
+      agent.log("dipatch: no signer for chain ID");
+    }
+    const address = await signer.getAddress();
+
     agent.log("dispatch: token:", token);
     agent.log("dispatch: chain:", chain.name);
     const transactions: TransactionPlan[] = await match(payload)
@@ -66,21 +71,24 @@ export class DynamicAPIDispatcher implements IDynamicAPIDispatcher {
       .exhaustive();
     agent.log("dispatch: transactions", transactions);
     for (const transaction of transactions) {
-      const txHash = await this.signAndSendTransaction(transaction);
+      const txHash = await this.signAndSendTransaction(signer, transaction);
       agent.log(chalk.redBright.bold("[transaction sent]:"), txHash);
     }
   }
 
-  async signAndSendTransaction(tx: TransactionPlan): Promise<string> {
-    const provider = this.signer.provider;
+  async signAndSendTransaction(
+    signer: Signer,
+    tx: TransactionPlan,
+  ): Promise<string> {
+    const provider = signer.provider;
     const ethersTx: ethers.PopulatedTransaction = {
       to: tx.to,
       value: ethers.BigNumber.from(tx.value),
       data: tx.data,
-      from: await this.signer.getAddress(),
+      from: await signer.getAddress(),
     };
     await provider!.estimateGas(ethersTx);
-    const txResponse = await this.signer.sendTransaction(ethersTx);
+    const txResponse = await signer.sendTransaction(ethersTx);
     await txResponse.wait();
     return txResponse.hash;
   }

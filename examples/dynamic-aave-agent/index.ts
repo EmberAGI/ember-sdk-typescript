@@ -29,7 +29,9 @@ async function main() {
       throw new Error("TEST_EMBER_ENDPOINT not set!");
     })();
   const client = new EmberGrpcClient(endpoint);
-  const dispatcher = new DynamicAPIDispatcher(client, signer);
+  const dispatcher = new DynamicAPIDispatcher(client, {
+    [await signer.getChainId()]: signer,
+  });
   const agent = DynamicApiAAVEAgent.newUsingEmberClient(client, dispatcher);
   console.log(`This agent uses ${rpc} to send transactions`);
   agent.addListener("dispatch", (payload) =>

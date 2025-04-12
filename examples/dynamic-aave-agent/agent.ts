@@ -483,7 +483,6 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
 
       const finalizedPayload = this.finalizePayload();
       if (finalizedPayload !== null) {
-        this.log("dispatching:", finalizedPayload);
         await this.saveDispatchHistory(finalizedPayload);
         this.emit("dispatch", finalizedPayload);
         await this.dispatch(finalizedPayload);
