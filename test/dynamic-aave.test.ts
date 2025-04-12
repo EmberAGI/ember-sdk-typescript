@@ -4,10 +4,11 @@ import {
   actionOptions,
   LendingToolDataProvider,
 } from "../onchain-actions/build/src/services/api/dynamic/aave.js";
-import { LLMLendingToolOpenAI } from "../onchain-actions/build/src/services/api/dynamic/llm-lending-tool.js"
+import { LLMLendingToolOpenAI } from "../onchain-actions/build/src/services/api/dynamic/llm-lending-tool.js";
 import { DynamicApiAAVEAgent } from "../examples/dynamic-aave-agent/agent";
 import { MockLendingToolDataProvider } from "../examples/dynamic-aave-agent/data-provider.ts";
 import permutations from "./helpers/permutations";
+import chalk from "chalk";
 
 dotenv.config();
 
@@ -30,7 +31,33 @@ describe("AAVE Dynamic API agent", function () {
         ARB: ["Arbitrum"],
       });
     const llmLendingTool = params?.llmLendingTool || new LLMLendingToolOpenAI();
-    return DynamicApiAAVEAgent.newMock(dataProvider, llmLendingTool);
+    const dispatcher = {
+      dispatch: async () => {},
+    };
+
+    const agent = DynamicApiAAVEAgent.newMock(
+      dataProvider,
+      llmLendingTool,
+      dispatcher,
+    );
+    agent.addListener("assistantResponse", (content) =>
+      console.log(chalk.bold("[assistant]"), content),
+    );
+    agent.addListener("payloadUpdated", (payload) => {
+      const params = Object.entries(payload).filter(
+        ([_, value]) => typeof value !== "undefined",
+      );
+      if (params.length) {
+        console.log(
+          chalk.bold("[parameters]"),
+          "\n",
+          params
+            .map(([param, value]) => chalk.yellowBright(param) + ": " + value)
+            .join("\n "),
+        );
+      }
+    });
+    return agent;
   }
 
   this.beforeAll(async () => {
@@ -252,9 +279,11 @@ describe("AAVE Dynamic API agent", function () {
 
       expect(
         agent.parameterOptions?.chainOptions?.chainOptions,
-      ).to.be.deep.equal(await dataProvider.getAvailableChains({
-        specifiedTokenName: "WETH"
-      }));
+      ).to.be.deep.equal(
+        await dataProvider.getAvailableChains({
+          specifiedTokenName: "WETH",
+        }),
+      );
       expect(agent.parameterOptions?.tokenOptions).to.be.deep.equal(undefined);
       expect(agent.parameterOptions?.actionOptions).to.be.deep.equal(undefined);
     });

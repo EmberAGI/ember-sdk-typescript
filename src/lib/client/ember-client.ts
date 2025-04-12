@@ -45,6 +45,8 @@ import {
   DynamicAPIClient,
   RefinePayloadRequest,
   RefinePayloadResponse,
+  LookupTokenRequest,
+  LookupTokenResponse,
 } from "../../generated/onchain-actions/onchain_actions.js";
 import { EmberClient } from "../types/client.js";
 
@@ -395,6 +397,27 @@ export class EmberGrpcClient implements EmberClient {
         metadata,
         options || {},
         (err: ServiceError | null, response?: RefinePayloadResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
+  lookupToken(
+    request: LookupTokenRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<LookupTokenResponse> {
+    return new Promise((resolve, reject) => {
+      this.dynamicAPIClient.lookupToken(
+        request,
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: LookupTokenResponse) => {
           if (err || !response) {
             reject(err);
           } else {

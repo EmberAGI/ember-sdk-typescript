@@ -28,6 +28,8 @@ import type {
   GetUserLiquidityPositionsResponse,
   RefinePayloadRequest,
   RefinePayloadResponse,
+  LookupTokenResponse,
+  LookupTokenRequest,
 } from "../../generated/onchain-actions/onchain_actions.js";
 
 export interface EmberClientConfig {
@@ -79,7 +81,9 @@ export interface EmberClient {
     request: GetWalletPositionsRequest,
   ): Promise<GetWalletPositionsResponse>;
 
+  /** Dynamic API */
   refinePayload(request: RefinePayloadRequest): Promise<RefinePayloadResponse>;
+  lookupToken(request: LookupTokenRequest): Promise<LookupTokenResponse>;
 
   /** Close the client connection */
   close(): void;

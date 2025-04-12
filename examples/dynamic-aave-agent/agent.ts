@@ -27,6 +27,7 @@ import {
 } from "openai/resources";
 import readline from "readline";
 import { match } from "ts-pattern";
+import { EventEmitter } from "events";
 
 export type SpecifyParametersCall = {
   action?: string;
@@ -101,22 +102,53 @@ export type ParametersResponseAction =
   | PerformDispatch
   | DoNothing;
 
-export class DynamicApiAAVEAgent {
+export interface DynamicAPIAgentEvents {
+  dispatch: (parameters: LendingToolParameters) => Promise<void>;
+  payloadUpdated: (payload: LendingToolPayload) => void;
+  assistantResponse: (response: string) => void;
+}
+
+export interface IDynamicAPIDispatcher {
+  dispatch: (
+    agent: DynamicApiAAVEAgent,
+    parameters: LendingToolParameters,
+  ) => Promise<void>;
+}
+
+export class DynamicApiAAVEAgent extends EventEmitter {
   public parameterOptions: ParameterOptions;
   public conversationHistory: ChatCompletionMessageParam[] = [];
   private initialized = false;
   private openai: OpenAI;
   private rl: readline.Interface;
+  private dispatcher: IDynamicAPIDispatcher;
   public payload: LendingToolPayload;
-  public dispatch: (payload: LendingToolParameters) => Promise<void> =
-    async () => {};
   public refine: (
     payload: RefinePayloadRequest,
   ) => Promise<RefinePayloadResponse> = undefined;
 
-  constructor(
-    refine: (payload: RefinePayloadRequest) => Promise<RefinePayloadResponse>,
-  ) {
+  on<K extends keyof DynamicAPIAgentEvents>(
+    event: K,
+    listener: DynamicAPIAgentEvents[K],
+  ): this {
+    return super.on(event, listener);
+  }
+
+  emit<K extends keyof DynamicAPIAgentEvents>(
+    event: K,
+    ...args: Parameters<DynamicAPIAgentEvents[K]>
+  ): boolean {
+    return super.emit(event, ...args);
+  }
+
+  constructor({
+    refine,
+    dispatcher,
+  }: {
+    refine: (payload: RefinePayloadRequest) => Promise<RefinePayloadResponse>;
+    dispatcher: IDynamicAPIDispatcher;
+  }) {
+    super();
     this.parameterOptions = {
       tokenOptions: undefined,
       chainOptions: undefined,
@@ -132,29 +164,41 @@ export class DynamicApiAAVEAgent {
       output: process.stdout,
     });
     this.refine = refine;
+    this.dispatcher = dispatcher;
   }
 
   static newMock(
     dataProvider: LendingToolDataProvider,
     llmLendingTool: LLMLendingTool,
+    dispatcher: IDynamicAPIDispatcher,
   ) {
-    return new DynamicApiAAVEAgent(async function (
-      request: RefinePayloadRequest,
-    ): Promise<RefinePayloadResponse> {
-      return await refinePayload(
-        dataProvider,
-        llmLendingTool,
-        request.payload!,
-      );
+    return new DynamicApiAAVEAgent({
+      refine: async function (
+        request: RefinePayloadRequest,
+      ): Promise<RefinePayloadResponse> {
+        return await refinePayload(
+          dataProvider,
+          llmLendingTool,
+          request.payload!,
+        );
+      },
+      dispatcher,
     });
   }
 
-  static newUsingEmberClient(client: EmberClient) {
-    return new DynamicApiAAVEAgent(async function (
-      request: RefinePayloadRequest,
-    ): Promise<RefinePayloadResponse> {
-      return await client.refinePayload(request);
+  static newUsingEmberClient(
+    client: EmberClient,
+    dispatcher: IDynamicAPIDispatcher,
+  ) {
+    const agent = new DynamicApiAAVEAgent({
+      refine: async function (
+        request: RefinePayloadRequest,
+      ): Promise<RefinePayloadResponse> {
+        return await client.refinePayload(request);
+      },
+      dispatcher,
     });
+    return agent;
   }
 
   public async resetParameterOptions() {
@@ -211,19 +255,8 @@ export class DynamicApiAAVEAgent {
     return new Promise((resolve) => {
       this.rl.question("[user]: ", async (input: string) => {
         const response = await this.processUserInput(input);
-        const params = Object.entries(this.payload).filter(
-          ([_, value]) => value !== null,
-        );
-        if (params.length) {
-          console.log(
-            chalk.bold("[parameters]"),
-            "\n",
-            params
-              .map(([param, value]) => chalk.yellowBright(param) + ": " + value)
-              .join("\n "),
-          );
-        }
-        console.log(chalk.bold("[assistant]"), response.content);
+        this.emit("payloadUpdated", this.payload);
+        this.emit("assistantResponse", response.content);
         resolve();
       });
     });
@@ -325,7 +358,6 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
 
   async processUserInput(userInput: string): Promise<ChatCompletionMessage> {
     if (!this.initialized) {
-      // TODO: make .init() private
       await this.init();
     }
 
@@ -356,6 +388,7 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
       this.conversationHistory.push(response);
       return response;
     } else if (
+      // TODO: consider reorganizing branching here
       !parsedParametersResponse.content ||
       response.action === "doNothing" ||
       response.action == "handleParameterRefusal"
@@ -452,6 +485,7 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
       if (finalizedPayload !== null) {
         this.log("dispatching:", finalizedPayload);
         await this.saveDispatchHistory(finalizedPayload);
+        this.emit("dispatch", finalizedPayload);
         await this.dispatch(finalizedPayload);
         this.resetPayload();
         await this.resetParameterOptions();
@@ -479,6 +513,10 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
       );
       return { action: "doNothing" };
     }
+  }
+
+  public async dispatch(payload: LendingToolParameters): Promise<void> {
+    await this.dispatcher.dispatch(this, payload);
   }
 
   public async saveDispatchHistory(
