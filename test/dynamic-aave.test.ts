@@ -1,357 +1,181 @@
+/// <reference types="mocha" />
 import { expect } from "chai";
 import dotenv from "dotenv";
+import { ethers } from "ethers";
 import {
-  actionOptions,
-  LendingToolDataProvider,
-} from "../onchain-actions/build/src/services/api/dynamic/aave.js";
-import { LLMLendingToolOpenAI } from "../onchain-actions/build/src/services/api/dynamic/llm-lending-tool.js";
+  EmberClient,
+  EmberGrpcClient,
+  GetWalletPositionsResponse,
+} from "@emberai/sdk-typescript";
 import { DynamicApiAAVEAgent } from "../examples/dynamic-aave-agent/agent";
-import { MockLendingToolDataProvider } from "../examples/dynamic-aave-agent/data-provider.ts";
-import permutations from "./helpers/permutations";
-import chalk from "chalk";
+import { DynamicAPIDispatcher } from "../examples/dynamic-aave-agent/dispatcher";
+import { ensureWethBalance } from "./helpers/weth";
 
 dotenv.config();
 
-describe("AAVE Dynamic API agent", function () {
-  this.timeout(40_000);
+/// THESE TESTS ARE ALMOST THE SAME AS ./aave.test.ts
+/// (but use the dynamic API agent).
+/// You probably want to update both.
+/// Additionally, there are tests with mocked data that cover edge cases
+/// for the dynamic API
 
-  let agent: DynamicApiAAVEAgent;
-  let dataProvider: LendingToolDataProvider;
-  let llmLendingTool: LLMLendingToolOpenAI;
+describe("Integration tests for AAVE using Dynamic API", function () {
+  this.timeout(50_000);
 
-  function newAgent(params?: {
-    dataProvider?: LendingToolDataProvider;
-    llmLendingTool?: LLMLendingToolOpenAI;
-  }) {
-    const dataProvider =
-      params?.dataProvider ||
-      new MockLendingToolDataProvider({
-        WETH: ["Arbitrum", "Base", "Ethereum"],
-        WBTC: ["Arbitrum", "Ethereum"],
-        ARB: ["Arbitrum"],
-      });
-    const llmLendingTool = params?.llmLendingTool || new LLMLendingToolOpenAI();
-    const dispatcher = {
-      dispatch: async () => {},
-    };
+  let wallet: ethers.Wallet;
 
-    const agent = DynamicApiAAVEAgent.newMock(
-      dataProvider,
-      llmLendingTool,
-      dispatcher,
-    );
-    agent.addListener("assistantResponse", (content) =>
-      console.log(chalk.bold("[assistant]"), content),
-    );
-    agent.addListener("payloadUpdated", (payload) => {
-      const params = Object.entries(payload).filter(
-        ([_, value]) => typeof value !== "undefined",
-      );
-      if (params.length) {
-        console.log(
-          chalk.bold("[parameters]"),
-          "\n",
-          params
-            .map(([param, value]) => chalk.yellowBright(param) + ": " + value)
-            .join("\n "),
-        );
-      }
-    });
-    return agent;
+  const mnemonic = process.env.MNEMONIC;
+  if (!mnemonic) {
+    throw new Error("MNEMONIC not found in the environment.");
   }
 
+  const emberEndpoint = process.env.TEST_EMBER_ENDPOINT;
+  if (!emberEndpoint) {
+    throw new Error("TEST_EMBER_ENDPOINT not found in the environment.");
+  }
+
+  const wethAddress = process.env.WETH_ADDRESS;
+  if (!wethAddress) {
+    throw new Error("WETH_ADDRESS not found in the environment.");
+  }
+
+  let provider: ethers.providers.JsonRpcProvider;
+  let client: EmberClient;
+  let agent: DynamicApiAAVEAgent;
+
+  // Get wallet lending positions
+  // TODO: once we add more adapters, this may end up using wrong data
+  // because we don't filter by adapter here
+  const getReserveOfToken = async (name: string) => {
+    const positionsResponse = (await client.getWalletPositions({
+      walletAddress: wallet.address,
+    })) as GetWalletPositionsResponse;
+
+    for (const position of positionsResponse.positions) {
+      if (!position.lendingPosition) continue;
+      for (const reserve of position.lendingPosition.userReserves) {
+        if (reserve.token.name == name || reserve.token.symbol == name) {
+          return reserve;
+        }
+      }
+    }
+
+    return null;
+  };
+
   this.beforeAll(async () => {
-    dataProvider = new MockLendingToolDataProvider({
-      WETH: ["Arbitrum", "Base", "Ethereum"],
-      WBTC: ["Arbitrum", "Ethereum"],
-      ARB: ["Arbitrum"],
+    const rpcUrl = process.env.TEST_RPC_URL;
+    if (!rpcUrl) {
+      console.error("Please set the TEST_RPC_URL environment variable.");
+      process.exit(1);
+    }
+    try {
+      provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+      await provider.getBlockNumber();
+    } catch (e) {
+      console.error(e);
+      throw new Error(
+        "Failed to connect, did you run `pnpm run start:anvil` first?",
+      );
+    }
+    wallet = ethers.Wallet.fromMnemonic(mnemonic);
+    const signer = wallet.connect(provider);
+    client = new EmberGrpcClient(emberEndpoint);
+    const dispatcher = new DynamicAPIDispatcher(client, {
+      [await signer.getChainId()]: signer,
     });
-
-    llmLendingTool = new LLMLendingToolOpenAI();
-
-    agent = newAgent({ dataProvider, llmLendingTool });
+    agent = DynamicApiAAVEAgent.newUsingEmberClient(client, dispatcher);
+    await ensureWethBalance(signer, "1", wethAddress);
   });
 
   this.afterAll(async () => {
     await agent.stop();
   });
 
-  describe("LLMLendingTool", async function () {
-    describe("specifyValue", async function () {
-      // skipping because it's covered by other tests anyway
-      // still useful to have this test here when tuning the prompt
-      it.skip("is case-insensitive", async () => {
-        llmLendingTool = new LLMLendingToolOpenAI();
-        const res = await llmLendingTool.specifyChainName("ethereum", [
-          "Ethereum",
-          "Base",
-          "Optimism",
-          "Solana",
-        ]);
-        expect(res).to.be.equal("Ethereum");
-      });
-    });
+  it("should be able to describe what it can do", async () => {
+    const response = await agent.processUserInput("What can you do?");
+    expect(response.content?.toLowerCase()).to.contain("borrow");
   });
 
-  it("irrelevant messages do not interrupt the flow", async function () {
-    agent = newAgent();
-    let hasDispatched = false;
-    agent.dispatch = async (payload) => {
-      hasDispatched = true;
-      expect(payload.action).to.be.equal("borrow");
-      expect(payload.chainName).to.be.equal("Base");
-      expect(payload.tokenName).to.be.equal("WETH");
-      expect(payload.amount).to.be.equal("1.2");
-    };
-    await agent.processUserInput("hi!");
-    await agent.processUserInput("how are you?");
-    await agent.processUserInput("I want to borrow some weth");
-    await agent.processUserInput("what time is it now?");
-    await agent.processUserInput("I want to borrow on base, the amount is 1.2");
-    expect(hasDispatched).to.be.true;
-    await agent.stop();
+  it("supply some WETH", async () => {
+    const amountToSupply = "0.01";
+
+    // Get original balance
+    const oldReserve = await getReserveOfToken("WETH");
+
+    await agent.processUserInput(`I want to supply`);
+    await agent.processUserInput(`${amountToSupply} of WETH`);
+    await agent.processUserInput("on Arbitrum one");
+
+    // Check the new balance increased
+    const newReserve = await getReserveOfToken("WETH");
+    expect(parseFloat(oldReserve.underlyingBalance)).to.be.closeTo(
+      parseFloat(newReserve.underlyingBalance) - parseFloat(amountToSupply),
+      0.00001,
+    );
   });
 
-  describe("mkProvideParametersTool (agent internal)", async function () {
-    it("Can handle incorrect input properly", async function () {
-      dataProvider = new MockLendingToolDataProvider({
-        WETH: ["Arbitrum", "Base", "Ethereum"],
-        WBTC: ["Arbitrum", "Ethereum"],
-        ARB: ["Arbitrum"],
-      });
-      agent = newAgent({ dataProvider, llmLendingTool });
-      agent.parameterOptions.chainOptions = { chainOptions: ["Arbitrum"] };
-      const response = await agent.provideParameters("Base chain");
-      expect(
-        JSON.parse(response.tool_calls![0].function.arguments),
-      ).to.be.deep.equal({
-        chainName: null,
-      });
-    });
+  // Depends on the above test for collateral
+  it("borrow some WETH", async () => {
+    const amountToBorrow = "0.005";
+
+    // Get original balance
+    const oldReserve = await getReserveOfToken("WETH");
+
+    // Borrow some WETH
+    await agent.processUserInput(
+      `borrow ${amountToBorrow} WETH on arbitrum one`,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
+    // Check the new borrow amount increase
+    const newReserve = await getReserveOfToken("WETH");
+    expect(parseFloat(oldReserve.totalBorrows)).to.be.closeTo(
+      parseFloat(newReserve.totalBorrows) - parseFloat(amountToBorrow),
+      0.00001,
+    );
   });
 
-  describe("Conflicting parameters must not be dispatched", async function () {
-    describe("single message workflow", function () {
-      it("complete params", async function () {
-        dataProvider = new MockLendingToolDataProvider({
-          WETH: ["Arbitrum", "Base", "Ethereum"],
-          WBTC: ["Arbitrum", "Ethereum"],
-          ARB: ["Arbitrum"],
-        });
-        agent = newAgent({ dataProvider, llmLendingTool });
-        const response = await agent.processUserInput(
-          "I want to borrow some ARB on base",
-        );
-        expect(agent.payload.specifiedChainName).to.be.undefined;
-        expect(agent.payload.specifiedTokenName).to.be.equal("ARB");
-        expect(agent.payload.amount).to.be.undefined;
-        expect(response.content).to.include.oneOf([
-          "impossible",
-          "not possible",
-          "sorry",
-          "apologize",
-          "do not support",
-          "not supported",
-        ]);
-        await agent.stop();
-      });
+  // Not implemented
 
-      it("incomplete params", async function () {
-        dataProvider = new MockLendingToolDataProvider({
-          WETH: ["Arbitrum", "Base", "Ethereum"],
-          WBTC: ["Arbitrum", "Ethereum"],
-          ARB: ["Arbitrum"],
-        });
-        agent = newAgent({ dataProvider, llmLendingTool });
-        let hasDispatched = false;
-        agent.dispatch = async () => {
-          hasDispatched = true;
-        };
-        const response = await agent.processUserInput("borrow 1 ARB on base");
-        expect([
-          agent.payload.specifiedChainName,
-          agent.payload.specifiedTokenName,
-        ]).to.not.be.deep.equal(["Base", "ARB"]);
-        expect(agent.payload.amount).to.be.equal("1");
-        expect(response.content).to.include.oneOf([
-          "impossible",
-          "not possible",
-          "sorry",
-          "apologize",
-          "do not support",
-          "not supported",
-        ]);
-        expect(hasDispatched).to.be.false;
-        await agent.stop();
-      });
-    });
+  // it("show my positions", async () => {
+  //   await agent.processUserInput(`show my positions`);
+  // });
 
-    describe("two messages workflow", async function () {
-      describe("complete, but conflicting params must be rejected", async function () {
-        it("token first", async function () {
-          dataProvider = new MockLendingToolDataProvider({
-            WETH: ["Arbitrum", "Base", "Ethereum"],
-            WBTC: ["Arbitrum", "Ethereum"],
-            ARB: ["Arbitrum"],
-          });
-          agent = newAgent({ dataProvider, llmLendingTool });
-          let hasDispatched = false;
-          agent.dispatch = async () => {
-            hasDispatched = true;
-          };
-          const response = await agent.processUserInput("borrow 1 ARB");
-          expect(response.content).to.not.include.oneOf(["base", "Base"]);
-          await agent.processUserInput("on Base");
-          expect(agent.payload.specifiedChainName).to.be.undefined;
-          expect(agent.payload.specifiedTokenName).to.be.equal("ARB");
-          expect(agent.payload.amount).to.be.equal("1");
-          expect(hasDispatched).to.be.false;
-          await agent.stop();
-        });
+  // Depends on the above test (the loan must exist)
+  it("repay some WETH", async () => {
+    const amountToRepay = "0.005";
 
-        it("chain first", async function () {
-          dataProvider = new MockLendingToolDataProvider({
-            WETH: ["Arbitrum", "Base", "Ethereum"],
-            WBTC: ["Arbitrum", "Ethereum"],
-            ARB: ["Arbitrum"],
-          });
-          agent = newAgent({ dataProvider, llmLendingTool });
-          let hasDispatched = false;
-          agent.dispatch = async () => {
-            hasDispatched = true;
-          };
-          await agent.processUserInput("borrow on Base");
-          await agent.processUserInput("1 WBTC");
-          expect(agent.payload.specifiedChainName).to.be.equal("Base");
-          expect(agent.payload.specifiedTokenName).to.be.undefined;
-          expect(agent.payload.amount).to.be.equal("1");
-          expect(hasDispatched).to.be.false;
-          await agent.stop();
-        });
-      });
-    });
+    // Get original balance
+    const oldReserve = await getReserveOfToken("WETH");
+
+    await agent.processUserInput(`repay ${amountToRepay} WETH on arbitrum one`);
+
+    // Check the new borrow amount decrease
+    const newReserve = await getReserveOfToken("WETH");
+    expect(parseFloat(oldReserve.totalBorrows)).to.be.closeTo(
+      parseFloat(newReserve.totalBorrows) + parseFloat(amountToRepay),
+      0.00001,
+    );
   });
 
-  it("overriding a choice works", async function () {
-    agent = newAgent();
-    await agent.processUserInput("I want to borrow some weth");
-    await agent.processUserInput("I want to borrow on base");
-    await agent.processUserInput("actually I want to borrow WBTC");
-    await agent.processUserInput("actually I want to borrow it on arbitrum");
-    await agent.processUserInput("actually I want to repay it, not borrow");
-    expect(agent.payload.action).to.be.equal("REPAY");
-    expect(agent.payload.specifiedChainName).to.be.equal("Arbitrum");
-    expect(agent.payload.specifiedTokenName).to.be.equal("WBTC");
-    expect(agent.payload.amount).to.be.undefined;
-    let hasDispatched = false;
-    agent.dispatch = async (payload) => {
-      hasDispatched = true;
-      expect(payload.action).to.be.equal("repay"); // lowercase, because it's from LendingToolParameters
-      expect(payload.chainName).to.be.equal("Arbitrum");
-      expect(payload.tokenName).to.be.equal("WBTC");
-      expect(payload.amount).to.be.equal("1.2");
-    };
-    await agent.processUserInput("the amount should be 1.2");
-    expect(hasDispatched).to.be.true;
-    expect(agent.payload.action).to.be.undefined;
-    expect(agent.payload.providedChainName).to.be.undefined;
-    expect(agent.payload.specifiedChainName).to.be.undefined;
-    expect(agent.payload.providedTokenName).to.be.undefined;
-    expect(agent.payload.specifiedTokenName).to.be.undefined;
-    expect(agent.payload.amount).to.be.undefined;
-  });
+  // Depends on the above test (the deposit must exist)
+  it("withdraw some WETH", async () => {
+    const amountToWithdraw = "0.004";
 
-  describe("options are visible to the user", () => {
-    it("actions", async function () {
-      agent = newAgent();
-      await agent.processUserInput("what can you do?");
+    // Get original balance
+    const oldReserve = await getReserveOfToken("WETH");
 
-      expect(agent.parameterOptions?.chainOptions).to.be.deep.equal(undefined);
-      expect(agent.parameterOptions?.tokenOptions).to.be.deep.equal(undefined);
-      expect(
-        new Set(agent.parameterOptions?.actionOptions?.actionOptions),
-      ).to.be.deep.equal(new Set(actionOptions.map((x) => x.toUpperCase())));
-    });
+    await agent.processUserInput(
+      `withdraw ${amountToWithdraw} WETH on arbitrum one`,
+    );
 
-    it("chains", async function () {
-      agent = newAgent();
-      await agent.processUserInput("I want to borrow some weth");
-
-      expect(
-        agent.parameterOptions?.chainOptions?.chainOptions,
-      ).to.be.deep.equal(
-        await dataProvider.getAvailableChains({
-          specifiedTokenName: "WETH",
-        }),
-      );
-      expect(agent.parameterOptions?.tokenOptions).to.be.deep.equal(undefined);
-      expect(agent.parameterOptions?.actionOptions).to.be.deep.equal(undefined);
-    });
-  });
-
-  it("sequence of two actions", async function () {
-    // action 1
-    await agent.processUserInput("I want to borrow some weth");
-    expect(agent.payload.action).to.be.equal("BORROW");
-    expect(agent.payload.specifiedChainName).to.be.undefined;
-    expect(agent.payload.specifiedTokenName).to.be.equal("WETH");
-    expect(agent.payload.amount).to.be.undefined;
-    let hasDispatched = false;
-    agent.dispatch = async (payload) => {
-      hasDispatched = true;
-      expect(payload.action).to.be.equal("borrow"); // lowercase, because it's from LendingToolParameters
-      expect(payload.chainName).to.be.equal("Arbitrum");
-      expect(payload.tokenName).to.be.equal("WETH");
-      expect(payload.amount).to.be.equal("1.2");
-    };
-    hasDispatched = false;
-    await agent.processUserInput("on arbitrum. amount is 1.2");
-    expect(hasDispatched).to.be.true;
-    expect(agent.payload.action).to.be.undefined;
-    expect(agent.payload.providedChainName).to.be.undefined;
-    expect(agent.payload.specifiedChainName).to.be.undefined;
-    expect(agent.payload.providedTokenName).to.be.undefined;
-    expect(agent.payload.specifiedTokenName).to.be.undefined;
-    expect(agent.payload.amount).to.be.undefined;
-
-    // action 2
-    hasDispatched = false;
-    agent.dispatch = async (payload) => {
-      hasDispatched = true;
-      expect(payload.action).to.be.equal("repay");
-      expect(payload.chainName).to.be.equal("Ethereum");
-      expect(payload.tokenName).to.be.equal("WBTC");
-      expect(payload.amount).to.be.equal("1.1");
-    };
-    await agent.processUserInput("I want to repay 1.1 wbtc on Ethereum");
-    expect(hasDispatched).to.be.true;
-    expect(agent.payload.action).to.be.undefined;
-    expect(agent.payload.providedChainName).to.be.undefined;
-    expect(agent.payload.specifiedChainName).to.be.undefined;
-    expect(agent.payload.providedTokenName).to.be.undefined;
-    expect(agent.payload.specifiedTokenName).to.be.undefined;
-    expect(agent.payload.amount).to.be.undefined;
-  });
-
-  describe("Order of input messages does not matter", function () {
-    const message_parts = ["borrow", "use ethereum chain", "1.2 of weth"];
-    permutations(message_parts).forEach((messages) => {
-      it("step-by-step flow: " + messages.join(", "), async () => {
-        agent = newAgent();
-        let hasDispatched = false;
-        agent.dispatch = async (payload) => {
-          hasDispatched = true;
-          expect(payload.action).to.be.equal("borrow");
-          expect(payload.chainName).to.be.equal("Ethereum");
-          expect(payload.tokenName).to.be.equal("WETH");
-          expect(payload.amount).to.be.equal("1.2");
-        };
-        for (const message of messages) {
-          await agent.processUserInput(message);
-        }
-        expect(hasDispatched).to.be.true;
-        await agent.stop();
-      });
-    });
+    // Check the new balance amount decrease
+    const newReserve = await getReserveOfToken("WETH");
+    expect(parseFloat(oldReserve.underlyingBalance)).to.be.closeTo(
+      parseFloat(newReserve.underlyingBalance) + parseFloat(amountToWithdraw),
+      0.00001,
+    );
   });
 });
