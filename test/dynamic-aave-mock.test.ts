@@ -72,10 +72,6 @@ describe("Integration tests for AAVE that use data mocks (to check edge cases)",
     agent = newAgent({ dataProvider, llmLendingTool });
   });
 
-  this.afterAll(async () => {
-    await agent.stop();
-  });
-
   describe("LLMLendingTool", async function () {
     describe("specifyValue", async function () {
       // skipping because it's covered by other tests anyway
@@ -96,20 +92,19 @@ describe("Integration tests for AAVE that use data mocks (to check edge cases)",
   it("irrelevant messages do not interrupt the flow", async function () {
     agent = newAgent();
     let hasDispatched = false;
-    agent.dispatch = async (payload) => {
+    agent.addListener("dispatch", async (payload) => {
       hasDispatched = true;
       expect(payload.action).to.be.equal("borrow");
       expect(payload.chainName).to.be.equal("Base");
       expect(payload.tokenName).to.be.equal("WETH");
       expect(payload.amount).to.be.equal("1.2");
-    };
+    });
     await agent.processUserInput("hi!");
     await agent.processUserInput("how are you?");
     await agent.processUserInput("I want to borrow some weth");
     await agent.processUserInput("what time is it now?");
     await agent.processUserInput("I want to borrow on base, the amount is 1.2");
     expect(hasDispatched).to.be.true;
-    await agent.stop();
   });
 
   describe("mkProvideParametersTool (agent internal)", async function () {
@@ -126,6 +121,9 @@ describe("Integration tests for AAVE that use data mocks (to check edge cases)",
         JSON.parse(response.tool_calls![0].function.arguments),
       ).to.be.deep.equal({
         chainName: null,
+        action: null,
+        amount: null,
+        tokenName: null,
       });
     });
   });
@@ -153,7 +151,6 @@ describe("Integration tests for AAVE that use data mocks (to check edge cases)",
           "do not support",
           "not supported",
         ]);
-        await agent.stop();
       });
 
       it("incomplete params", async function () {
@@ -164,9 +161,9 @@ describe("Integration tests for AAVE that use data mocks (to check edge cases)",
         });
         agent = newAgent({ dataProvider, llmLendingTool });
         let hasDispatched = false;
-        agent.dispatch = async () => {
+        agent.addListener("dispatch", () => {
           hasDispatched = true;
-        };
+        });
         const response = await agent.processUserInput("borrow 1 ARB on base");
         expect([
           agent.payload.specifiedChainName,
@@ -182,7 +179,6 @@ describe("Integration tests for AAVE that use data mocks (to check edge cases)",
           "not supported",
         ]);
         expect(hasDispatched).to.be.false;
-        await agent.stop();
       });
     });
 
@@ -196,9 +192,9 @@ describe("Integration tests for AAVE that use data mocks (to check edge cases)",
           });
           agent = newAgent({ dataProvider, llmLendingTool });
           let hasDispatched = false;
-          agent.dispatch = async () => {
+          agent.addListener("dispatch", () => {
             hasDispatched = true;
-          };
+          });
           const response = await agent.processUserInput("borrow 1 ARB");
           expect(response.content).to.not.include.oneOf(["base", "Base"]);
           await agent.processUserInput("on Base");
@@ -206,7 +202,6 @@ describe("Integration tests for AAVE that use data mocks (to check edge cases)",
           expect(agent.payload.specifiedTokenName).to.be.equal("ARB");
           expect(agent.payload.amount).to.be.equal("1");
           expect(hasDispatched).to.be.false;
-          await agent.stop();
         });
 
         it("chain first", async function () {
@@ -217,16 +212,15 @@ describe("Integration tests for AAVE that use data mocks (to check edge cases)",
           });
           agent = newAgent({ dataProvider, llmLendingTool });
           let hasDispatched = false;
-          agent.dispatch = async () => {
+          agent.addListener("dispatch", () => {
             hasDispatched = true;
-          };
+          });
           await agent.processUserInput("borrow on Base");
           await agent.processUserInput("1 WBTC");
           expect(agent.payload.specifiedChainName).to.be.equal("Base");
           expect(agent.payload.specifiedTokenName).to.be.undefined;
           expect(agent.payload.amount).to.be.equal("1");
           expect(hasDispatched).to.be.false;
-          await agent.stop();
         });
       });
     });
@@ -244,13 +238,13 @@ describe("Integration tests for AAVE that use data mocks (to check edge cases)",
     expect(agent.payload.specifiedTokenName).to.be.equal("WBTC");
     expect(agent.payload.amount).to.be.undefined;
     let hasDispatched = false;
-    agent.dispatch = async (payload) => {
+    agent.addListener("dispatch", (payload) => {
       hasDispatched = true;
       expect(payload.action).to.be.equal("repay"); // lowercase, because it's from LendingToolParameters
       expect(payload.chainName).to.be.equal("Arbitrum");
       expect(payload.tokenName).to.be.equal("WBTC");
       expect(payload.amount).to.be.equal("1.2");
-    };
+    });
     await agent.processUserInput("the amount should be 1.2");
     expect(hasDispatched).to.be.true;
     expect(agent.payload.action).to.be.undefined;
@@ -297,13 +291,13 @@ describe("Integration tests for AAVE that use data mocks (to check edge cases)",
     expect(agent.payload.specifiedTokenName).to.be.equal("WETH");
     expect(agent.payload.amount).to.be.undefined;
     let hasDispatched = false;
-    agent.dispatch = async (payload) => {
+    agent.addListener("dispatch", (payload) => {
       hasDispatched = true;
       expect(payload.action).to.be.equal("borrow"); // lowercase, because it's from LendingToolParameters
       expect(payload.chainName).to.be.equal("Arbitrum");
       expect(payload.tokenName).to.be.equal("WETH");
       expect(payload.amount).to.be.equal("1.2");
-    };
+    });
     hasDispatched = false;
     await agent.processUserInput("on arbitrum. amount is 1.2");
     expect(hasDispatched).to.be.true;
@@ -313,16 +307,17 @@ describe("Integration tests for AAVE that use data mocks (to check edge cases)",
     expect(agent.payload.providedTokenName).to.be.undefined;
     expect(agent.payload.specifiedTokenName).to.be.undefined;
     expect(agent.payload.amount).to.be.undefined;
+    agent.removeAllListeners("dispatch");
 
     // action 2
     hasDispatched = false;
-    agent.dispatch = async (payload) => {
+    agent.addListener("dispatch", (payload) => {
       hasDispatched = true;
       expect(payload.action).to.be.equal("repay");
       expect(payload.chainName).to.be.equal("Ethereum");
       expect(payload.tokenName).to.be.equal("WBTC");
       expect(payload.amount).to.be.equal("1.1");
-    };
+    });
     await agent.processUserInput("I want to repay 1.1 wbtc on Ethereum");
     expect(hasDispatched).to.be.true;
     expect(agent.payload.action).to.be.undefined;
@@ -339,18 +334,17 @@ describe("Integration tests for AAVE that use data mocks (to check edge cases)",
       it("step-by-step flow: " + messages.join(", "), async () => {
         agent = newAgent();
         let hasDispatched = false;
-        agent.dispatch = async (payload) => {
+        agent.addListener("dispatch", (payload) => {
           hasDispatched = true;
           expect(payload.action).to.be.equal("borrow");
           expect(payload.chainName).to.be.equal("Ethereum");
           expect(payload.tokenName).to.be.equal("WETH");
           expect(payload.amount).to.be.equal("1.2");
-        };
+        });
         for (const message of messages) {
           await agent.processUserInput(message);
         }
         expect(hasDispatched).to.be.true;
-        await agent.stop();
       });
     });
   });

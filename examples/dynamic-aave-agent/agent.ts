@@ -41,6 +41,7 @@ const provideParametersTool: ChatCompletionTool = {
   type: "function",
   function: {
     name: "provide_parameters",
+    strict: true,
     description:
       "Read some parameters from the given user message. If there is not enough info to fill all the parameters, only fill the provided ones and YOU MUST PROCEED WITHOUT ASKING.",
     parameters: {
@@ -66,6 +67,7 @@ const provideParametersTool: ChatCompletionTool = {
         },
       },
       required: [],
+      additionalProperties: false,
     },
   },
 };
@@ -159,10 +161,6 @@ export class DynamicApiAAVEAgent extends EventEmitter {
       throw new Error("OPENAI_API_KEY not set!");
     }
     this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    this.rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
     this.refine = refine;
     this.dispatcher = dispatcher;
   }
@@ -242,6 +240,10 @@ export class DynamicApiAAVEAgent extends EventEmitter {
   public async start() {
     await this.init();
     this.log("Agent started. Type your message below.");
+    this.rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
     while (true) {
       await this.promptUser();
     }
@@ -288,6 +290,13 @@ export class DynamicApiAAVEAgent extends EventEmitter {
     } else {
       delete tool.function.parameters.properties.action;
     }
+
+    // fill `required`
+    tool.function.parameters.required = [];
+    for (const param of Object.keys(tool.function.parameters.properties)) {
+      tool.function.parameters.required.push(param);
+    }
+
     this.log("[mkAskForParametersTool]:", tool);
     return tool;
   }
@@ -296,38 +305,54 @@ export class DynamicApiAAVEAgent extends EventEmitter {
   // returned from the server
   public mkProvideParametersTool(): ChatCompletionTool {
     const tool = clone(provideParametersTool);
-    const mkVariants = (variants: string[], paramName: string) => ({
-      oneOf: [
+    const mkVariants = (
+      variants: string[],
+      paramName: string,
+      description?: string,
+    ) => {
+      const variantsSchema = [
         {
           type: "string",
-          enum: variants,
-          description: `The ${paramName} the user wants to use`,
+
+          description: description
+            ? description
+            : `The ${paramName} the user wants to use`,
+          ...(variants.length ? { enum: variants } : {}),
         },
         {
           type: "null",
           description:
             "Not recognized. If there is no option that corresponds to the user input, return null",
         },
-      ],
-    });
+      ];
+
+      return {
+        anyOf: variantsSchema,
+      };
+    };
     const { chainOptions, tokenOptions, actionOptions } = this.parameterOptions;
-    if (chainOptions?.chainOptions) {
-      tool.function.parameters.properties.chainName = mkVariants(
-        chainOptions.chainOptions,
-        "chain name",
-      );
-    }
-    if (tokenOptions?.tokenOptions) {
-      tool.function.parameters.properties.tokenName = mkVariants(
-        tokenOptions.tokenOptions,
-        "token name",
-      );
-    }
-    if (actionOptions?.actionOptions) {
-      tool.function.parameters.properties.action = mkVariants(
-        actionOptions.actionOptions.map(actionFromAPI),
-        "action",
-      );
+    tool.function.parameters.properties.chainName = mkVariants(
+      chainOptions?.chainOptions ?? [],
+      "chain name",
+    );
+    tool.function.parameters.properties.tokenName = mkVariants(
+      tokenOptions?.tokenOptions ?? [],
+      "token name",
+    );
+    tool.function.parameters.properties.action = mkVariants(
+      actionOptions?.actionOptions.map(actionFromAPI) ?? [],
+      "action",
+    );
+    // TODO: mkNumericParameter
+    tool.function.parameters.properties.amount = mkVariants(
+      [],
+      "amount",
+      "The amount of asset to use (human readable). Numeric.",
+    );
+    // fill `required`
+    tool.function.parameters.required = [];
+    for (const param of Object.keys(tool.function.parameters.properties)) {
+      tool.function.parameters.required.push(param);
     }
     this.log("[mkProvideParametersTool]:", tool);
     return tool;
@@ -485,7 +510,7 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
       if (finalizedPayload !== null) {
         await this.saveDispatchHistory(finalizedPayload);
         this.emit("dispatch", finalizedPayload);
-        await this.dispatch(finalizedPayload);
+        await this.dispatcher.dispatch(this, finalizedPayload);
         this.resetPayload();
         await this.resetParameterOptions();
         return { action: "performDispatch" };
@@ -512,10 +537,6 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
       );
       return { action: "doNothing" };
     }
-  }
-
-  public async dispatch(payload: LendingToolParameters): Promise<void> {
-    await this.dispatcher.dispatch(this, payload);
   }
 
   public async saveDispatchHistory(
@@ -559,6 +580,8 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
       messages,
       tools,
       tool_choice,
+      parallel_tool_calls: tools.length ? false : undefined, // for strict: true to work, see
+      // https://openai.com/index/introducing-structured-outputs-in-the-api/
     });
     return response.choices[0].message;
   }
