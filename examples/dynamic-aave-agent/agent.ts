@@ -316,7 +316,7 @@ export class DynamicApiAAVEAgent extends EventEmitter {
 
           description: description
             ? description
-            : `The ${paramName} the user wants to use`,
+            : `The ${paramName} provided`,
           ...(variants.length ? { enum: variants } : {}),
         },
         {
@@ -576,7 +576,7 @@ If you choose an option, you MUST provide it verbatim, as specified in the schem
     tool_choice: ChatCompletionToolChoiceOption = "auto",
   ): Promise<ChatCompletionMessage> {
     const response = await this.openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4.1",
       messages,
       tools,
       tool_choice,
