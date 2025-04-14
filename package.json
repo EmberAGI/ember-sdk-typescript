@@ -30,6 +30,8 @@
     "generate-proto": "pnpm run lint:require-submodule && ./scripts/generate-proto.sh",
     "agent:aave": "npx tsx examples/aave-agent/index.ts",
     "agent:camelot": "npx tsx --no-warnings examples/camelot-agent/index.ts",
+    "agent:dynamic-aave-mock": "npx tsx --no-warnings --tsconfig tsconfig.json examples/dynamic-aave-agent/mock.ts",
+    "agent:dynamic-aave": "npx tsx --no-warnings --tsconfig tsconfig.json examples/dynamic-aave-agent/index.ts",
     "start:anvil": "pnpm run lint:require-submodule && npx tsx test/start-anvil.ts",
     "start:mainnet": "pnpm run lint:require-submodule && npx tsx test/start-mainnet.ts"
   },
@@ -49,10 +51,10 @@
     "access": "public"
   },
   "dependencies": {
-    "@bufbuild/protobuf": "^2.2.3"
+    "@bufbuild/protobuf": "^2.2.3",
+    "fp-ts": "^2.16.9"
   },
   "devDependencies": {
-    "ethers": "^5.7.2",
     "@eslint/js": "^9.18.0",
     "@grpc/grpc-js": "^1.12.5",
     "@grpc/proto-loader": "^0.7.13",
@@ -64,12 +66,16 @@
     "@types/node": "^22.10.7",
     "@viem/anvil": "^0.0.10",
     "chai": "^5.1.2",
+    "chalk": "^5.4.1",
+    "clone": "^2.1.2",
     "dotenv": "^16.3.1",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^9.1.0",
+    "ethers": "^5.7.2",
     "globals": "^15.1.0",
     "grpc-tools": "^1.13.0",
     "mocha": "^11.1.0",
+    "mocha-suppress-logs": "^0.5.1",
     "prettier": "^3.2.5",
     "prool": "^0.0.23",
     "semantic-release": "^24.2.1",

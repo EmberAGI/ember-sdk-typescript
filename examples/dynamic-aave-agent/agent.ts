@@ -1,0 +1,627 @@
+import chalk from "chalk";
+import util from "util";
+import { OpenAI } from "openai";
+import clone from "clone";
+import {
+  refinePayload,
+  LendingToolDataProvider,
+  LLMLendingTool,
+  actionOptions,
+  LendingToolAction,
+  actionToAPI,
+} from "../../onchain-actions/build/src/services/api/dynamic/aave.js";
+import {
+  ParameterOptions,
+  LendingToolParameter,
+  LendingToolPayload,
+  DynamicAPIAction,
+  RefinePayloadRequest,
+  EmberClient,
+  RefinePayloadResponse,
+} from "@emberai/sdk-typescript";
+import {
+  ChatCompletionMessageParam,
+  ChatCompletionTool,
+  ChatCompletionMessage,
+  ChatCompletionToolChoiceOption,
+} from "openai/resources";
+import readline from "readline";
+import { match } from "ts-pattern";
+import { EventEmitter } from "events";
+
+export type SpecifyParametersCall = {
+  action?: string;
+  tokenName?: string;
+  chainName?: string;
+  amount?: string;
+};
+
+// Must be in sync with SpecifyParametersCall
+const provideParametersTool: ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: "provide_parameters",
+    strict: true,
+    description:
+      "Read some parameters from the given user message. If there is not enough info to fill all the parameters, only fill the provided ones and YOU MUST PROCEED WITHOUT ASKING.",
+    parameters: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          description:
+            "Action to perform, like 'borrow' or 'repay'. Single identifier. Optional.",
+          enum: ["borrow", "repay"],
+        },
+        tokenName: {
+          type: "string",
+          description: "The token name to use. Optional.",
+        },
+        chainName: {
+          type: "string",
+          description: "The chain name to use. Optional.",
+        },
+        amount: {
+          type: "string",
+          description: "The amount of asset to use (human readable). Optional.",
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+  },
+};
+
+// Must correspond to the real tool schema
+export type LendingToolParameters = {
+  action: LendingToolAction;
+  tokenName: string;
+  chainName: string;
+  amount: string;
+};
+
+export type UpdateParameterOptions = {
+  action: "updateParameterOptions";
+  parameterOptions: ParameterOptions;
+};
+
+export type HandleParameterRefusal = {
+  action: "handleParameterRefusal";
+  refusalParameter: LendingToolParameter;
+};
+
+export type PerformDispatch = {
+  action: "performDispatch";
+};
+
+export type DoNothing = {
+  action: "doNothing";
+};
+
+export type ParametersResponseAction =
+  | UpdateParameterOptions
+  | HandleParameterRefusal
+  | PerformDispatch
+  | DoNothing;
+
+export interface DynamicAPIAgentEvents {
+  dispatch: (parameters: LendingToolParameters) => Promise<void>;
+  payloadUpdated: (payload: LendingToolPayload) => void;
+  assistantResponse: (response: string) => void;
+}
+
+export interface IDynamicAPIDispatcher {
+  dispatch: (
+    agent: DynamicApiAAVEAgent,
+    parameters: LendingToolParameters,
+  ) => Promise<void>;
+}
+
+export class DynamicApiAAVEAgent extends EventEmitter {
+  public parameterOptions: ParameterOptions;
+  public conversationHistory: ChatCompletionMessageParam[] = [];
+  private initialized = false;
+  private openai: OpenAI;
+  private rl: readline.Interface;
+  private dispatcher: IDynamicAPIDispatcher;
+  public payload: LendingToolPayload;
+  public refine: (
+    payload: RefinePayloadRequest,
+  ) => Promise<RefinePayloadResponse> = undefined;
+
+  on<K extends keyof DynamicAPIAgentEvents>(
+    event: K,
+    listener: DynamicAPIAgentEvents[K],
+  ): this {
+    return super.on(event, listener);
+  }
+
+  emit<K extends keyof DynamicAPIAgentEvents>(
+    event: K,
+    ...args: Parameters<DynamicAPIAgentEvents[K]>
+  ): boolean {
+    return super.emit(event, ...args);
+  }
+
+  constructor({
+    refine,
+    dispatcher,
+  }: {
+    refine: (payload: RefinePayloadRequest) => Promise<RefinePayloadResponse>;
+    dispatcher: IDynamicAPIDispatcher;
+  }) {
+    super();
+    this.parameterOptions = {
+      tokenOptions: undefined,
+      chainOptions: undefined,
+      actionOptions: undefined,
+    };
+    this.resetPayload();
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY not set!");
+    }
+    this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    this.refine = refine;
+    this.dispatcher = dispatcher;
+  }
+
+  static newMock(
+    dataProvider: LendingToolDataProvider,
+    llmLendingTool: LLMLendingTool,
+    dispatcher: IDynamicAPIDispatcher,
+  ) {
+    return new DynamicApiAAVEAgent({
+      refine: async function (
+        request: RefinePayloadRequest,
+      ): Promise<RefinePayloadResponse> {
+        return await refinePayload(
+          dataProvider,
+          llmLendingTool,
+          request.payload!,
+        );
+      },
+      dispatcher,
+    });
+  }
+
+  static newUsingEmberClient(
+    client: EmberClient,
+    dispatcher: IDynamicAPIDispatcher,
+  ) {
+    const agent = new DynamicApiAAVEAgent({
+      refine: async function (
+        request: RefinePayloadRequest,
+      ): Promise<RefinePayloadResponse> {
+        return await client.refinePayload(request);
+      },
+      dispatcher,
+    });
+    return agent;
+  }
+
+  public async resetParameterOptions() {
+    const { parameterOptions } = await this.refine({ payload: this.payload });
+    this.parameterOptions = parameterOptions;
+  }
+
+  public resetPayload() {
+    this.payload = {
+      action: undefined,
+      providedTokenName: undefined,
+      specifiedTokenName: undefined,
+      providedChainName: undefined,
+      specifiedChainName: undefined,
+      amount: undefined,
+    };
+  }
+
+  private resetPayloadParameter(param: LendingToolParameter) {
+    match(param)
+      .with(LendingToolParameter.ACTION, () => {
+        this.payload.action = undefined;
+      })
+      .with(LendingToolParameter.TOKEN_NAME, () => {
+        this.payload.providedTokenName = undefined;
+        this.payload.specifiedTokenName = undefined;
+      })
+      .with(LendingToolParameter.CHAIN_NAME, () => {
+        this.payload.providedChainName = undefined;
+        this.payload.specifiedChainName = undefined;
+      })
+      .with(LendingToolParameter.AMOUNT, () => {
+        this.payload.amount = undefined;
+      })
+      .with(LendingToolParameter.UNRECOGNIZED, () => {
+        // protobuf artifact
+      })
+      .exhaustive();
+  }
+
+  public async start() {
+    await this.init();
+    this.log("Agent started. Type your message below.");
+    this.rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+    while (true) {
+      await this.promptUser();
+    }
+  }
+
+  public async stop() {
+    this.rl.close();
+  }
+
+  async promptUser(): Promise<void> {
+    return new Promise((resolve) => {
+      this.rl.question("[user]: ", async (input: string) => {
+        const response = await this.processUserInput(input);
+        this.emit("payloadUpdated", this.payload);
+        this.emit("assistantResponse", response.content);
+        resolve();
+      });
+    });
+  }
+
+  // Create a tool that is not callable, but cointains some context for the LLM to
+  // figure out how to ask the user for more input.
+  public mkAskForParametersTool(): ChatCompletionTool {
+    const tool = clone(provideParametersTool);
+    tool.function.description =
+      "The parameters that are needed to perform an action";
+    tool.function.name = "ask_for_parameters";
+    const { chainOptions, tokenOptions, actionOptions } = this.parameterOptions;
+    if (chainOptions?.chainOptions) {
+      tool.function.parameters.properties.chainName.enum =
+        chainOptions.chainOptions;
+    } else {
+      delete tool.function.parameters.properties.chainName;
+    }
+    if (tokenOptions?.tokenOptions) {
+      tool.function.parameters.properties.tokenName.enum =
+        tokenOptions.tokenOptions;
+    } else {
+      delete tool.function.parameters.properties.tokenName;
+    }
+    if (actionOptions?.actionOptions) {
+      tool.function.parameters.properties.action.enum =
+        actionOptions.actionOptions.map(actionFromAPI);
+    } else {
+      delete tool.function.parameters.properties.action;
+    }
+
+    // fill `required`
+    tool.function.parameters.required = [];
+    for (const param of Object.keys(tool.function.parameters.properties)) {
+      tool.function.parameters.required.push(param);
+    }
+
+    this.log("[mkAskForParametersTool]:", tool);
+    return tool;
+  }
+
+  // Create a tool that parses user-supplied parameters based on `parameterOptions`
+  // returned from the server
+  public mkProvideParametersTool(): ChatCompletionTool {
+    const tool = clone(provideParametersTool);
+    const mkVariants = (
+      variants: string[],
+      paramName: string,
+      description?: string,
+    ) => {
+      const variantsSchema = [
+        {
+          type: "string",
+
+          description: description
+            ? description
+            : `The ${paramName} provided`,
+          ...(variants.length ? { enum: variants } : {}),
+        },
+        {
+          type: "null",
+          description:
+            "Not recognized. If there is no option that corresponds to the user input, return null",
+        },
+      ];
+
+      return {
+        anyOf: variantsSchema,
+      };
+    };
+    const { chainOptions, tokenOptions, actionOptions } = this.parameterOptions;
+    tool.function.parameters.properties.chainName = mkVariants(
+      chainOptions?.chainOptions ?? [],
+      "chain name",
+    );
+    tool.function.parameters.properties.tokenName = mkVariants(
+      tokenOptions?.tokenOptions ?? [],
+      "token name",
+    );
+    tool.function.parameters.properties.action = mkVariants(
+      actionOptions?.actionOptions.map(actionFromAPI) ?? [],
+      "action",
+    );
+    // TODO: mkNumericParameter
+    tool.function.parameters.properties.amount = mkVariants(
+      [],
+      "amount",
+      "The amount of asset to use (human readable). Numeric.",
+    );
+    // fill `required`
+    tool.function.parameters.required = [];
+    for (const param of Object.keys(tool.function.parameters.properties)) {
+      tool.function.parameters.required.push(param);
+    }
+    this.log("[mkProvideParametersTool]:", tool);
+    return tool;
+  }
+
+  async provideParameters(userInput: string): Promise<ChatCompletionMessage> {
+    const response = await this.callCompletion(
+      this.conversationHistory.concat([
+        {
+          role: "system",
+          content: `You are a helpful assistant who tries to guess and normalize business logic parameters the user provides via a chat interface.
+The parameters are provided in natural language, and may contain typos. You are given a number of options to choose from,
+and you should pick the most suitable value and provide it verbatim, or, in the case it's not clear which value corresponds to the user input, return null.
+If you choose an option, you MUST provide it verbatim, as specified in the schema.`,
+        },
+        {
+          role: "system",
+          content:
+            "NEVER ask the user to provide the parameters. Only specify parameters that were provided. All of the parameters ARE optional!!! If there is not enough info to fill all the parameters, only fill them partially. You will find user input below. I will tip you $200 for a correct answer - pay attention to nullability",
+        },
+        { role: "user", content: userInput },
+      ]),
+      [this.mkProvideParametersTool()],
+    );
+    this.log("[provideParameters]", response);
+    return response;
+  }
+
+  async processUserInput(userInput: string): Promise<ChatCompletionMessage> {
+    if (!this.initialized) {
+      await this.init();
+    }
+
+    this.log(chalk.yellowBright("[processUserInput]:"), userInput);
+    this.conversationHistory.push({ role: "user", content: userInput });
+
+    // first, try to parse some data
+    const parsedParametersResponse: ChatCompletionMessage =
+      await this.provideParameters(userInput);
+
+    parsedParametersResponse.content = parsedParametersResponse.content || "";
+
+    const response = await this.handleParametersResponse(
+      parsedParametersResponse,
+    );
+
+    if (response.action === "performDispatch") {
+      const response = await this.callCompletion(
+        this.conversationHistory.concat([
+          {
+            role: "system",
+            content:
+              "Notify the user that the action has been sent for execution",
+          },
+        ]),
+        [],
+      );
+      this.conversationHistory.push(response);
+      return response;
+    } else if (
+      // TODO: consider reorganizing branching here
+      !parsedParametersResponse.content ||
+      response.action === "doNothing" ||
+      response.action == "handleParameterRefusal"
+    ) {
+      // content was not provided, we are dealing with a parameter update tool call.
+      // Call the LLM once more to prompt the user to provide more info.
+      const conversationalResponse: ChatCompletionMessage =
+        await this.callCompletion(
+          this.conversationHistory.concat([
+            {
+              role: "system",
+              content: `You are a helpful assistant who tries to guess and normalize business logic parameters the user provides via a chat interface.
+The parameters are provided in natural language, and may contain typos. You are given a number of options to choose from,
+and you should pick the most suitable value and provide it verbatim, or, in the case it's not clear which value corresponds to the user input, return null.
+If you choose an option, you MUST provide it verbatim, as specified in the schema. NEVER ask the user to confirm their choice.`,
+            },
+            {
+              role: "system",
+              content:
+                (response.action === "handleParameterRefusal"
+                  ? `It's impossible to satisfy user's request, because the parameter that was provided by the user (${response.refusalParameter}) is not valid for the requested action. Apologise, tell the user his parameter is impossible to use, and then `
+                  : "") +
+                "use the tool schema to prompt the user to provide the parameter. list available options if possible. NEVER ask the user to confirm an action.",
+            },
+          ]),
+          [this.mkAskForParametersTool()],
+          // never actually call the tool
+          "none",
+        );
+      this.log("[conversationalResponse]", conversationalResponse);
+      this.conversationHistory.push(conversationalResponse);
+      return conversationalResponse;
+    } else {
+      this.conversationHistory.push(parsedParametersResponse);
+      return parsedParametersResponse;
+    }
+  }
+
+  async handleParametersResponse(
+    message: ChatCompletionMessage,
+  ): Promise<ParametersResponseAction> {
+    if (message.tool_calls?.length) {
+      // merge parameters from multiple tool calls first, because we don't want to
+      // roundtrip to the server more than once
+      let params: SpecifyParametersCall = {};
+      for (const tool_call of message.tool_calls.reverse()) {
+        const argsString: string = tool_call.function.arguments;
+        const parsedParams = JSON.parse(
+          argsString || "{}",
+        ) as SpecifyParametersCall;
+        params = { ...params, ...parsedParams };
+      }
+
+      this.log("[handleParametersResponse] parsed arguments:", params);
+
+      if (actionOptions.includes(params.action as LendingToolAction)) {
+        this.payload.action = actionToAPI(params.action as LendingToolAction);
+      }
+
+      if (params.amount) {
+        this.payload.amount = params.amount;
+      }
+
+      if (params.chainName) {
+        if (this.payload.providedChainName != params.chainName) {
+          this.payload.specifiedChainName = undefined;
+        }
+        this.payload.providedChainName = params.chainName;
+      }
+
+      if (params.tokenName) {
+        if (this.payload.providedTokenName != params.tokenName) {
+          this.payload.specifiedTokenName = undefined;
+        }
+        this.payload.providedTokenName = params.tokenName;
+      }
+
+      const {
+        parameterOptions: newParameterOptions,
+        payload: updatedPayload,
+        refusalParameter,
+        refusal,
+      } = await this.refine({ payload: this.payload });
+
+      this.log("message", message);
+      this.log("newParameterOptions", newParameterOptions);
+      this.log("updatedPayload", updatedPayload);
+      if (refusal) {
+        this.log("refusalParameter", refusalParameter);
+      }
+      this.payload = updatedPayload;
+
+      const finalizedPayload = this.finalizePayload();
+      if (finalizedPayload !== null) {
+        await this.saveDispatchHistory(finalizedPayload);
+        this.emit("dispatch", finalizedPayload);
+        await this.dispatcher.dispatch(this, finalizedPayload);
+        this.resetPayload();
+        await this.resetParameterOptions();
+        return { action: "performDispatch" };
+      } else {
+        this.log("not dispatching yet");
+      }
+      this.parameterOptions = newParameterOptions;
+
+      if (refusal) {
+        this.resetPayloadParameter(refusalParameter);
+        this.log(
+          "[handleParametersResponse]: the server refused this configuration of parameters in the payload as invalid.",
+        );
+        return { action: "handleParameterRefusal", refusalParameter };
+      }
+
+      return {
+        action: "updateParameterOptions",
+        parameterOptions: newParameterOptions,
+      };
+    } else {
+      this.log(
+        "No useful input provided from the user: provide_parameters wasn't called by LLM",
+      );
+      return { action: "doNothing" };
+    }
+  }
+
+  public async saveDispatchHistory(
+    payload: LendingToolParameters,
+  ): Promise<void> {
+    this.conversationHistory.push({
+      role: "assistant",
+      content: `Dispatching tool call with these parameters: ${JSON.stringify(payload, null, 2)}`,
+    });
+    this.conversationHistory.push({
+      role: "assistant",
+      content: "Done!",
+    });
+  }
+
+  private finalizePayload(): LendingToolParameters | null {
+    if (
+      typeof this.payload.amount !== "undefined" &&
+      typeof this.payload.specifiedChainName !== "undefined" &&
+      typeof this.payload.specifiedTokenName !== "undefined" &&
+      typeof this.payload.action !== "undefined"
+    ) {
+      return {
+        amount: this.payload.amount,
+        chainName: this.payload.specifiedChainName,
+        tokenName: this.payload.specifiedTokenName,
+        action: actionFromAPI(this.payload.action),
+      };
+    } else {
+      return null;
+    }
+  }
+
+  async callCompletion(
+    messages: ChatCompletionMessageParam[],
+    tools: ChatCompletionTool[],
+    tool_choice: ChatCompletionToolChoiceOption = "auto",
+  ): Promise<ChatCompletionMessage> {
+    const response = await this.openai.chat.completions.create({
+      model: "gpt-4.1",
+      messages,
+      tools,
+      tool_choice,
+      parallel_tool_calls: tools.length ? false : undefined, // for strict: true to work, see
+      // https://openai.com/index/introducing-structured-outputs-in-the-api/
+    });
+    return response.choices[0].message;
+  }
+
+  private async init() {
+    this.conversationHistory = [
+      {
+        role: "system",
+        content: `You are a helpful assistant that provides access to blockchain lending and borrowing functionalities via Ember SDK. NEVER respond in markdown, ALWAYS use plain text. Never add links to your response. Do not suggest the user to ask questions. When an unknown error happens, do not try to guess the error reason. Be succint. Use bullet lists to enumerate options. Never enclose token names in quotes.`,
+      },
+    ];
+
+    this.resetPayload();
+    await this.resetParameterOptions();
+    this.initialized = true;
+  }
+
+  public async log(...args: unknown[]) {
+    console.log(
+      args
+        .map((arg) =>
+          typeof arg === "string"
+            ? arg
+            : util.inspect(arg, { depth: null, colors: true }),
+        )
+        .join(" "),
+    );
+  }
+}
+
+export const actionFromAPI = (
+  apiAction: DynamicAPIAction,
+): LendingToolAction => {
+  return match(apiAction)
+    .with(DynamicAPIAction.BORROW, () => "borrow")
+    .with(DynamicAPIAction.REPAY, () => "repay")
+    .with(DynamicAPIAction.SUPPLY, () => "supply")
+    .with(DynamicAPIAction.WITHDRAW, () => "withdraw")
+    .with(DynamicAPIAction.UNRECOGNIZED, () => {
+      throw new Error("actionFromAPI: impossible happened");
+    })
+    .exhaustive() as LendingToolAction;
+};

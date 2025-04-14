@@ -8,7 +8,7 @@ import { AnvilOptions } from "@viem/anvil";
 
 dotenv.config();
 
-export const startEnv = async (useAnvil: bool) => {
+export const startEnv = async (useAnvil: boolean) => {
   const originalRpcUrl = process.env.ETH_RPC_URL;
   if (!originalRpcUrl) throw new Error("No ETH_RPC_URL provided");
 
@@ -62,6 +62,9 @@ export const startEnv = async (useAnvil: bool) => {
     "docker compose --progress=plain -f compose.local.yaml up -d --wait",
     "compose",
   );
+
+  // Add some timeout to make sure the memgraph port is available
+  await new Promise((resolve) => setTimeout(resolve, 10_000));
 
   await runCommand("pnpm install", "install");
   try {

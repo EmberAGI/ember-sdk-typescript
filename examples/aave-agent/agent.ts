@@ -64,7 +64,7 @@ export class Agent {
     });
   }
 
-  async log(...args) {
+  async log(...args: unknown[]) {
     console.log(...args);
   }
 

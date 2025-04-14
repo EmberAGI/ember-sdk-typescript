@@ -7,12 +7,19 @@ import {
   EmberGrpcClient,
   GetWalletPositionsResponse,
 } from "@emberai/sdk-typescript";
-import { Agent } from "../examples/aave-agent/agent";
+import { DynamicApiAAVEAgent } from "../examples/dynamic-aave-agent/agent";
+import { DynamicAPIDispatcher } from "../examples/dynamic-aave-agent/dispatcher";
 import { ensureWethBalance } from "./helpers/weth";
 
 dotenv.config();
 
-describe("Integration tests for AAVE", function () {
+/// THESE TESTS ARE ALMOST THE SAME AS ./aave.test.ts
+/// (but use the dynamic API agent).
+/// You probably want to update both.
+/// Additionally, there are tests with mocked data that cover edge cases
+/// for the dynamic API
+
+describe("Integration tests for AAVE using Dynamic API", function () {
   this.timeout(50_000);
 
   let wallet: ethers.Wallet;
@@ -34,7 +41,7 @@ describe("Integration tests for AAVE", function () {
 
   let provider: ethers.providers.JsonRpcProvider;
   let client: EmberClient;
-  let agent: Agent;
+  let agent: DynamicApiAAVEAgent;
 
   // Get wallet lending positions
   // TODO: once we add more adapters, this may end up using wrong data
@@ -74,10 +81,10 @@ describe("Integration tests for AAVE", function () {
     wallet = ethers.Wallet.fromMnemonic(mnemonic);
     const signer = wallet.connect(provider);
     client = new EmberGrpcClient(emberEndpoint);
-    agent = new Agent(client, signer, wallet.address);
-    // Mute logs
-    agent.log = async () => {};
-    await agent.init();
+    const dispatcher = new DynamicAPIDispatcher(client, {
+      [await signer.getChainId()]: signer,
+    });
+    agent = DynamicApiAAVEAgent.newUsingEmberClient(client, dispatcher);
     await ensureWethBalance(signer, "1", wethAddress);
   });
 
@@ -87,7 +94,7 @@ describe("Integration tests for AAVE", function () {
 
   it("should be able to describe what it can do", async () => {
     const response = await agent.processUserInput("What can you do?");
-    expect(response.content.toLowerCase()).to.contain("borrow");
+    expect(response.content?.toLowerCase()).to.contain("borrow");
   });
 
   it("supply some WETH", async () => {
@@ -96,15 +103,9 @@ describe("Integration tests for AAVE", function () {
     // Get original balance
     const oldReserve = await getReserveOfToken("WETH");
 
-    // supply some WETH
-    const response = await agent.processUserInput(
-      `supply ${amountToSupply} WETH`,
-    );
-    expect(response.function_call!.name).to.be.equal("supply");
-    expect(JSON.parse(response.function_call!.arguments)).to.be.deep.equal({
-      tokenName: "Wrapped ETH",
-      amount: amountToSupply,
-    });
+    await agent.processUserInput(`I want to supply`);
+    await agent.processUserInput(`${amountToSupply} of WETH`);
+    await agent.processUserInput("on Arbitrum one");
 
     // Check the new balance increased
     const newReserve = await getReserveOfToken("WETH");
@@ -122,14 +123,9 @@ describe("Integration tests for AAVE", function () {
     const oldReserve = await getReserveOfToken("WETH");
 
     // Borrow some WETH
-    const response = await agent.processUserInput(
-      `borrow ${amountToBorrow} WETH`,
+    await agent.processUserInput(
+      `borrow ${amountToBorrow} WETH on arbitrum one`,
     );
-    expect(response.function_call!.name).to.be.equal("borrow");
-    expect(JSON.parse(response.function_call!.arguments)).to.be.deep.equal({
-      tokenName: "Wrapped ETH",
-      amount: amountToBorrow,
-    });
 
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
@@ -141,10 +137,11 @@ describe("Integration tests for AAVE", function () {
     );
   });
 
-  it("show my positions", async () => {
-    // Just to make sure there are no exceptions
-    await agent.processUserInput(`show my positions`);
-  });
+  // Not implemented
+
+  // it("show my positions", async () => {
+  //   await agent.processUserInput(`show my positions`);
+  // });
 
   // Depends on the above test (the loan must exist)
   it("repay some WETH", async () => {
@@ -153,14 +150,7 @@ describe("Integration tests for AAVE", function () {
     // Get original balance
     const oldReserve = await getReserveOfToken("WETH");
 
-    const response = await agent.processUserInput(
-      `repay ${amountToRepay} WETH`,
-    );
-    expect(response.function_call!.name).to.be.equal("repay");
-    expect(JSON.parse(response.function_call!.arguments)).to.be.deep.equal({
-      tokenName: "Wrapped ETH",
-      amount: amountToRepay,
-    });
+    await agent.processUserInput(`repay ${amountToRepay} WETH on arbitrum one`);
 
     // Check the new borrow amount decrease
     const newReserve = await getReserveOfToken("WETH");
@@ -177,14 +167,9 @@ describe("Integration tests for AAVE", function () {
     // Get original balance
     const oldReserve = await getReserveOfToken("WETH");
 
-    const response = await agent.processUserInput(
-      `withdraw ${amountToWithdraw} WETH`,
+    await agent.processUserInput(
+      `withdraw ${amountToWithdraw} WETH on arbitrum one`,
     );
-    expect(response.function_call!.name).to.be.equal("withdraw");
-    expect(JSON.parse(response.function_call!.arguments)).to.be.deep.equal({
-      tokenName: "Wrapped ETH",
-      amount: amountToWithdraw,
-    });
 
     // Check the new balance amount decrease
     const newReserve = await getReserveOfToken("WETH");
