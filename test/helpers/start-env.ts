@@ -5,59 +5,64 @@ import { ethers } from "ethers";
 import { runCommand } from "./run-command";
 import * as process from "process";
 import { AnvilOptions } from "@viem/anvil";
+import { CHAIN_CONFIGS } from "../chains";
+import { writeFile } from "fs/promises";
 
 dotenv.config();
 
-export const startEnv = async (useAnvil: bool) => {
-  const originalRpcUrl = process.env.ETH_RPC_URL;
-  if (!originalRpcUrl) throw new Error("No ETH_RPC_URL provided");
-
+export const startEnv = async (useAnvil: boolean) => {
   const mnemonic = process.env.MNEMONIC;
   if (!mnemonic) throw new Error("Mnemonic not found in the .env file.");
-
-  let rpcUrl: string;
-
+  let anvilPort = parseInt(process.env.ANVIL_PORT || "3070");
   let instance: null | Instance = null;
+  let rpcUrlVars = "";
   if (useAnvil) {
-    const anvilSpec: AnvilOptions = {
-      mnemonic: mnemonic,
-      forkUrl: originalRpcUrl,
-    };
+    for (const [chainId, chainConfig] of Object.entries(CHAIN_CONFIGS)) {
+      const { varName, rpcUrl: originalRpcUrl } = chainConfig;
 
-    if (process.env.TEST_ANVIL_FORK_BLOCK_NUMBER) {
-      anvilSpec.forkBlockNumber = parseInt(
-        process.env.TEST_ANVIL_FORK_BLOCK_NUMBER,
-      );
-    } else {
-      console.info(
-        "TEST_ANVIL_FORK_BLOCK_NUMBER not provided, starting from the latest block",
-      );
+      const anvilSpec: AnvilOptions = {
+        mnemonic: mnemonic,
+        forkUrl: originalRpcUrl,
+      };
+
+      const blockNumberVarName = `TEST_${varName}_ANVIL_FORK_BLOCK_NUMBER`;
+      if (process.env[blockNumberVarName]) {
+        anvilSpec.forkBlockNumber = parseInt(process.env[blockNumberVarName]);
+      } else {
+        console.info(
+          `${blockNumberVarName} not provided, starting from the latest block`,
+        );
+      }
+
+      const pool = definePool({
+        instance: anvil(anvilSpec),
+      });
+
+      instance = (await pool.start(1, {
+        port: anvilPort++,
+      })) as Instance;
+
+      const anvilRpcUrl = `http://${instance.host}:${instance.port}`;
+      process.env[`${varName}_RPC_URL`] = anvilRpcUrl;
+      const provider = new ethers.providers.JsonRpcProvider(anvilRpcUrl);
+      await provider.send("evm_setAutomine", [true]);
+
+      const { chainId: providerChainId } = await provider.getNetwork();
+      if (parseInt(chainId) !== providerChainId) {
+        throw new Error(
+          `Chain ID does not match for anvil: ${parseInt(chainId)} != ${providerChainId}`,
+        );
+      }
+
+      // Make sure the RPC is alive
+      await provider.getBlockNumber();
+      console.log(`${varName}_RPC_URL=${anvilRpcUrl}`);
+      rpcUrlVars += `${varName}_RPC_URL=${anvilRpcUrl}\n`;
     }
-
-    const pool = definePool({
-      instance: anvil(anvilSpec),
-    });
-
-    instance = (await pool.start(1, {
-      port: parseInt(process.env.ANVIL_PORT || "3070"),
-    })) as Instance;
-
-    rpcUrl = `http://${instance.host}:${instance.port}`;
-  } else {
-    rpcUrl = originalRpcUrl;
   }
-
-  const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
-
-  if (useAnvil) {
-    await provider.send("evm_setAutomine", [true]);
-  }
-
-  const { chainId } = await provider.getNetwork();
-  const blockNumber = await provider.getBlockNumber();
 
   process.chdir("onchain-actions");
-  process.env.AAVE_RPC_URL = rpcUrl;
+
   await runCommand(
     "docker compose --progress=plain -f compose.local.yaml up -d --wait",
     "compose",
@@ -73,18 +78,10 @@ export const startEnv = async (useAnvil: bool) => {
     );
   }
 
-  console.log("Chain ID:", chainId);
-  console.log("Latest Block Number:", blockNumber);
-  console.log();
-  if (!useAnvil) {
-    console.log("Anvil instance started. Ensure this configuration is used:");
-    console.log();
-    console.log(`TEST_RPC_URL=${rpcUrl}`);
-    if (instance !== null) {
-      console.log(`ANVIL_PORT=${instance.port}`);
-    }
-    console.log();
+  if (useAnvil) {
+    await writeFile(".env.tmp.test", rpcUrlVars);
   }
+
   // DO NOT EDIT the line below, CI depends on it
   // useAnvil flag purposefully breaks the logic, to ensure we never accidentally
   // run real chain tests in CI.

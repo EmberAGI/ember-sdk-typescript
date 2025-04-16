@@ -6,6 +6,7 @@ import { EmberClient, EmberGrpcClient } from "@emberai/sdk-typescript";
 import { Agent } from "../examples/camelot-agent/agent";
 import { ensureWethBalance } from "./helpers/weth";
 import { ERC20Wrapper } from "./helpers/erc20";
+import { MultiChainSigner } from "./multichain-signer";
 
 dotenv.config();
 
@@ -35,9 +36,9 @@ describe("Integration tests for Algebra (Camelot) on mainnet", function () {
   let usdc: ERC20Wrapper;
 
   this.beforeAll(async () => {
-    const rpcUrl = process.env.ETH_RPC_URL;
+    const rpcUrl = process.env.MAINNET_TEST_RPC_URL;
     if (!rpcUrl) {
-      throw new Error("ETH_RPC_URL not found in the environment.");
+      throw new Error("MAINNET_TEST_RPC_URL not found in the environment.");
     }
     try {
       provider = new ethers.providers.JsonRpcProvider(rpcUrl);
@@ -49,16 +50,29 @@ describe("Integration tests for Algebra (Camelot) on mainnet", function () {
       );
     }
     wallet = ethers.Wallet.fromMnemonic(mnemonic);
-    const signer = wallet.connect(provider);
+    const chainId = (await provider.getNetwork()).chainId;
+    const signer = await MultiChainSigner.fromEnv();
     client = new EmberGrpcClient(emberEndpoint);
-    agent = new Agent(client, signer, wallet.address);
+    agent = new Agent(client, signer);
     // Mute logs
     agent.log = async () => {};
     await agent.init();
-    await ensureWethBalance(signer, "0.0005", wethAddress);
+    await ensureWethBalance(
+      signer.getSignerForChainId(chainId),
+      "0.0005",
+      wethAddress,
+    );
 
-    const USDC_CA = "0xaf88d065e77c8cc2239327c5edb3a432268e5831";
-    usdc = new ERC20Wrapper(provider, USDC_CA);
+    // TODO: move to test/chains.ts if we decide to use it elsewhere
+    const USDC_CA = {
+      42161: "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+    };
+
+    if (!USDC_CA[chainId]) {
+      throw new Error(`Unable to find USDC_CA for chain ID ${chainId}`);
+    }
+
+    usdc = new ERC20Wrapper(provider, USDC_CA[chainId]);
   });
 
   this.afterAll(async () => {
