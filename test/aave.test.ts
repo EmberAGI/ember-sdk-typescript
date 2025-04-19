@@ -41,7 +41,7 @@ describe("Integration tests for AAVE", async function () {
   // because we don't filter by adapter here
   const getReserveOfToken = async (name: string) => {
     const positionsResponse = (await client.getWalletPositions({
-      walletAddress: wallet.address,
+      walletAddress: signer.wallet.address,
     })) as GetWalletPositionsResponse;
 
     for (const position of positionsResponse.positions) {

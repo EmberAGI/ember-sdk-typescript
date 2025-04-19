@@ -1,6 +1,6 @@
 import ethers from "ethers";
 import { TransactionResponse } from "@ethersproject/abstract-provider";
-import { ChainConfig, CHAIN_CONFIGS } from "./chains";
+import { ChainConfig, CHAIN_CONFIGS } from "./chains.js";
 
 export class MultiChainSigner {
   constructor(
@@ -17,6 +17,16 @@ export class MultiChainSigner {
     return address;
   }
 
+  public getChainByVarName(varName: string): [number, ChainConfig] {
+    for (const [chainId, chainConfig] of Object.entries(this.chains)) {
+      if (varName === chainConfig.varName)
+        return [parseInt(chainId), chainConfig];
+    }
+    throw new Error(
+      `getChainByVarName: not found: ${varName}. Available chains are: ${Object.keys(this.chains).join(", ")}`,
+    );
+  }
+
   public getAddress(): Promise<string> {
     return this.wallet.getAddress();
   }
@@ -25,7 +35,9 @@ export class MultiChainSigner {
     if (this.chains[chainId]) {
       return this.chains[chainId];
     } else {
-      throw new Error(`MultiChainSigner.getChainConfig(${chainId}): no chain config for this ID`);
+      throw new Error(
+        `MultiChainSigner.getChainConfig(${chainId}): no chain config for this ID`,
+      );
     }
   }
 
@@ -56,9 +68,10 @@ export class MultiChainSigner {
   ): Promise<Record<number, ethers.Signer>> {
     return Object.fromEntries(
       await Promise.all(
-        Object.entries(CHAIN_CONFIGS).map(([chainId, { rpcUrl }]) => {
+        Object.entries(CHAIN_CONFIGS).map(([chainId, { rpcUrl, name }]) => {
           const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
           const signer = wallet.connect(provider);
+          console.log("chain enabled:", name, "rpc:", rpcUrl);
           return [chainId, signer];
         }),
       ),

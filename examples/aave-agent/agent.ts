@@ -2,6 +2,7 @@ import readline from "readline";
 import { ethers } from "ethers";
 import { OpenAI } from "openai";
 import { ChatCompletionCreateParams } from "openai/resources/index.mjs";
+import { MultiChainSigner } from "../../test/multichain-signer.js";
 
 // Import types from Ember SDK
 import {
@@ -13,6 +14,9 @@ import {
   GetWalletPositionsResponse,
   WalletPosition,
 } from "@emberai/sdk-typescript";
+
+const GAS_LIMIT_BUFFER = 10; // percentage
+const FEE_BUFFER = 5; // percentage, applies to maxFeePerGas and maxPriorityFeePerGas
 
 function logError(...args: unknown[]) {
   console.error(...args);
@@ -29,8 +33,7 @@ type ChatCompletionRequestMessage = {
 
 export class Agent {
   private client: EmberClient;
-  private signer: ethers.Signer;
-  private userAddress: string;
+  private signer: MultiChainSigner;
   // Store both lending and borrowing capabilities for each token
   private tokenMap: Record<
     string,
@@ -50,10 +53,9 @@ export class Agent {
    * @param signer - an ethers.Signer that will sign transactions.
    * @param userAddress - the user's wallet address.
    */
-  constructor(client: EmberClient, signer: ethers.Signer, userAddress: string) {
+  constructor(client: EmberClient, signer: MultiChainSigner) {
     this.client = client;
     this.signer = signer;
-    this.userAddress = userAddress;
     if (!process.env.OPENAI_API_KEY) {
       throw new Error("OPENAI_API_KEY not set!");
     }
@@ -64,8 +66,12 @@ export class Agent {
     });
   }
 
-  async log(...args) {
+  async log(...args: unknown[]) {
     console.log(...args);
+  }
+
+  async logError(...args: unknown[]) {
+    console.error(...args);
   }
 
   async init() {
@@ -87,11 +93,21 @@ export class Agent {
     const processCapability = (capability: Capability) => {
       if (capability.lendingCapability) {
         const token = capability.lendingCapability.underlyingToken!;
+        if (!token.name) {
+          this.logError(
+            `Ignoring empty token name: ${token.tokenUid?.chainId}:${token.tokenUid?.address}`,
+          );
+          return;
+        }
         if (!this.tokenMap[token.name]) {
           this.tokenMap[token.name] = {
             chainId: token.tokenUid!.chainId,
             address: token.tokenUid!.address,
           };
+        } else {
+          this.logError(
+            `Ignoring duplicate token name: ${this.tokenMap[token.name]} vs. ${token}`,
+          );
         }
       }
     };
@@ -316,19 +332,23 @@ export class Agent {
 
   async executeAction(
     actionName: string,
-    actionFunction: () => Promise<TransactionPlan[]>,
+    actionFunction: () => Promise<{
+      transactions: TransactionPlan[];
+      chainId: string;
+    }>,
   ): Promise<string> {
     try {
-      const transactions = await actionFunction();
+      const { transactions, chainId } = await actionFunction();
+      this.log("[executeAction]:", actionName, { transactions }, { chainId });
       for (const transaction of transactions) {
-        const txHash = await this.signAndSendTransaction(transaction);
+        const txHash = await this.signAndSendTransaction(transaction, chainId);
         this.log("transaction sent:", txHash);
       }
       return `${actionName}: success!`;
     } catch (error: unknown) {
       const err = error as Error;
       const reason = err.message;
-      logError(`Error in ${actionName}:`, reason);
+      this.logError(`Error in ${actionName}:`, reason);
       return `Error executing ${actionName}: ${reason}`;
     }
   }
@@ -351,13 +371,13 @@ export class Agent {
           address: tokenDetail.address,
         },
         amount: amount,
-        borrowerWalletAddress: this.userAddress,
+        borrowerWalletAddress: await this.signer.getAddress(),
       });
       if (response.error || !response.transactions)
         throw new Error(
           response.error?.message || "No transaction plan returned",
         );
-      return response.transactions;
+      return response;
     });
   }
 
@@ -379,13 +399,13 @@ export class Agent {
           address: tokenDetail.address,
         },
         amount: amount,
-        borrowerWalletAddress: this.userAddress,
+        borrowerWalletAddress: await this.signer.getAddress(),
       });
       if (response.error || !response.transactions)
         throw new Error(
           response.error?.message || "No transaction plan returned",
         );
-      return response.transactions;
+      return response;
     });
   }
 
@@ -407,13 +427,13 @@ export class Agent {
           address: tokenDetail.address,
         },
         amount: amount,
-        supplierWalletAddress: this.userAddress,
+        supplierWalletAddress: await this.signer.getAddress(),
       });
       if (response.error || !response.transactions)
         throw new Error(
           response.error?.message || "No transaction plan returned",
         );
-      return response.transactions;
+      return response;
     });
   }
 
@@ -435,13 +455,13 @@ export class Agent {
           address: tokenDetail.address,
         },
         amount: amount,
-        lenderWalletAddress: this.userAddress,
+        lenderWalletAddress: await this.signer.getAddress(),
       });
       if (response.error || !response.transactions)
         throw new Error(
           response.error?.message || "No transaction plan returned",
         );
-      return response.transactions;
+      return response;
     });
   }
 
@@ -482,7 +502,7 @@ export class Agent {
     try {
       let res = "";
       const positionsResponse = (await this.client.getWalletPositions({
-        walletAddress: this.userAddress,
+        walletAddress: await this.signer.getAddress(),
       })) as GetWalletPositionsResponse;
       for (const position of positionsResponse.positions) {
         res += this.describeWalletPosition(position) + "\n";
@@ -495,16 +515,37 @@ export class Agent {
     }
   }
 
-  async signAndSendTransaction(tx: TransactionPlan): Promise<string> {
-    const provider = this.signer.provider;
-    const ethersTx: ethers.PopulatedTransaction = {
-      to: tx.to,
-      value: ethers.BigNumber.from(tx.value),
-      data: tx.data,
-      from: this.userAddress,
+  async signAndSendTransaction(
+    txPlan: TransactionPlan,
+    chainIdStr: string,
+  ): Promise<string> {
+    const tx: ethers.PopulatedTransaction = {
+      to: txPlan.to,
+      value: ethers.BigNumber.from(txPlan.value),
+      data: txPlan.data,
+      from: this.signer.wallet.address,
     };
-    await provider!.estimateGas(ethersTx);
-    const txResponse = await this.signer.sendTransaction(ethersTx);
+    const chainId = parseInt(chainIdStr);
+    const signer = this.signer.getSignerForChainId(chainId);
+    const provider = signer?.provider;
+    if (typeof signer === "undefined" || typeof provider === "undefined") {
+      throw new Error(
+        `signAndSendTransaction: no RPC provider for chain ID ${chainIdStr}`,
+      );
+    }
+
+    // TODO: this logic could potentially live in MultiChainSigner
+
+    // bump gasLimit by GAS_LIMIT_BUFFER percent
+    const gasEstimate = await provider.estimateGas(tx);
+    tx.gasLimit = gasEstimate.mul(100 + GAS_LIMIT_BUFFER).div(100);
+    // Apply FEE_BUFFER to fee data
+    const feeData = await provider.getFeeData();
+    tx.maxFeePerGas = feeData.maxFeePerGas!.mul(100 + FEE_BUFFER).div(100);
+    tx.maxPriorityFeePerGas = feeData
+      .maxPriorityFeePerGas!.mul(100 + FEE_BUFFER)
+      .div(100);
+    const txResponse = await this.signer.sendTransaction(chainId, tx);
     await txResponse.wait();
     return txResponse.hash;
   }

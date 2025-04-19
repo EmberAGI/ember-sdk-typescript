@@ -26,6 +26,7 @@ type LiquidityPair = {
   handle: string; // e.g. WETH/USDC
   token0: TokenIdentifier;
   token1: TokenIdentifier;
+  chainId: number;
 };
 
 export class Agent {
@@ -88,6 +89,7 @@ Rules:
         handle: pool.symbol0 + "/" + pool.symbol1,
         token0: pool.token0!,
         token1: pool.token1!,
+        chainId: parseInt(pool.token0!.chainId),
       });
     });
 
@@ -182,6 +184,7 @@ Rules:
     userInput: string,
   ): Promise<ChatCompletionRequestMessage> {
     this.conversationHistory.push({ role: "user", content: userInput });
+    this.log("[user]:", userInput);
     const response = await this.callChatCompletion();
     response.content = response.content || "";
     const followUp: { content: string } | undefined = await this.handleResponse(
@@ -299,6 +302,7 @@ Rules:
   ): Promise<string> {
     try {
       const { transactions, chainId } = await actionFunction();
+      this.log("[executeAction]:", actionName, { transactions }, { chainId });
       for (const transaction of transactions) {
         const txHash = await this.signAndSendTransaction(transaction, chainId);
         this.log("transaction sent:", txHash);
@@ -322,9 +326,7 @@ Rules:
       return await this.client.withdrawLiquidity({
         tokenId: position.tokenId,
         providerId: position.providerId,
-        supplierAddress: await this.getAddressForChainId(
-          parseInt(position.token0!.chainId),
-        ),
+        supplierAddress: this.signer.wallet.address,
       });
     });
   }
@@ -350,7 +352,7 @@ Rules:
 
   async toolGetUserLiquidityPositions(): Promise<string> {
     const { positions } = await this.client.getUserLiquidityPositions({
-      supplierAddress: this.userAddress,
+      supplierAddress: this.signer.wallet.address,
     });
 
     if (positions.length === 0) return "No liquidity positions found.";
@@ -379,9 +381,7 @@ Rules:
     const { token0, token1 } = identifiedPair;
     const { amount0, amount1, priceFrom, priceTo } = params;
     return await this.executeAction("supplyLiquidity", async () => {
-      const supplierAddress = await this.getAddressForChainId(
-        parseInt(token0.chainId),
-      );
+      const supplierAddress = this.signer.wallet.address;
       return await this.client.supplyLiquidity({
         token0,
         token1,
@@ -405,10 +405,10 @@ Rules:
       to: txPlan.to,
       value: ethers.BigNumber.from(txPlan.value),
       data: txPlan.data,
-      from: this.userAddress,
+      from: this.signer.wallet.address,
     };
     const chainId = parseInt(chainIdStr);
-    const signer = this.signer;
+    const signer = this.signer.getSignerForChainId(chainId);
     const provider = signer?.provider;
     if (typeof signer === "undefined" || typeof provider === "undefined") {
       throw new Error(
@@ -427,7 +427,7 @@ Rules:
     tx.maxPriorityFeePerGas = feeData
       .maxPriorityFeePerGas!.mul(100 + FEE_BUFFER)
       .div(100);
-    const txResponse = await signer.sendTransaction(chainId, tx);
+    const txResponse = await this.signer.sendTransaction(chainId, tx);
     await txResponse.wait();
     return txResponse.hash;
   }

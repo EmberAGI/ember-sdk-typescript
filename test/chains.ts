@@ -1,10 +1,16 @@
 import "dotenv/config";
 
+export type ChainTokenConfig = {
+  name: string;
+  address: string;
+};
+
 export type ChainConfig = {
   name: string;
   rpcUrl: string;
   varName: string;
-  wrappedNativeToken?: string; // WETH/ wAPE, etc
+  wrappedNativeToken?: ChainTokenConfig;
+  anotherToken?: ChainTokenConfig; // Some tests, in particular algebra.mainnet-test.ts require at least one known token besides native
 };
 
 export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
@@ -14,7 +20,14 @@ export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
       process.env.ARBITRUM_ONE_RPC_URL ||
       "https://arbitrum.gateway.tenderly.co",
     varName: "ARBITRUM_ONE",
-    wrappedNativeToken: "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
+    wrappedNativeToken: {
+      name: "WETH",
+      address: "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
+    },
+    anotherToken: {
+      name: "WETH",
+      address: "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+    },
   },
   421614: {
     name: "Arbitrum Sepolia Testnet",
@@ -28,7 +41,14 @@ export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
     rpcUrl:
       process.env.APECHAIN_RPC_URL || "https://apechain.calderachain.xyz/http",
     varName: "APECHAIN",
-    wrappedNativeToken: "0x48b62137EdfA95a428D35C09E44256a739F6B557", // WAPE
+    wrappedNativeToken: {
+      name: "wAPE",
+      address: "0x48b62137EdfA95a428D35C09E44256a739F6B557",
+    },
+    anotherToken: {
+      name: "ApeUSD",
+      address: "0xA2235d059F80e176D931Ef76b6C51953Eb3fBEf4",
+    },
   },
   33111: {
     name: "ApeChain Curtis Testnet",
