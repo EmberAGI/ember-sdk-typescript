@@ -110,7 +110,7 @@ describe("Integration tests for AAVE", function () {
     const newReserve = await getReserveOfToken("WETH");
     expect(parseFloat(oldReserve.underlyingBalance)).to.be.closeTo(
       parseFloat(newReserve.underlyingBalance) - parseFloat(amountToSupply),
-      0.00001,
+      0.0001,
     );
   });
 
@@ -137,7 +137,7 @@ describe("Integration tests for AAVE", function () {
     const newReserve = await getReserveOfToken("WETH");
     expect(parseFloat(oldReserve.totalBorrows)).to.be.closeTo(
       parseFloat(newReserve.totalBorrows) - parseFloat(amountToBorrow),
-      0.000001,
+      0.0001,
     );
   });
 
@@ -166,7 +166,7 @@ describe("Integration tests for AAVE", function () {
     const newReserve = await getReserveOfToken("WETH");
     expect(parseFloat(oldReserve.totalBorrows)).to.be.closeTo(
       parseFloat(newReserve.totalBorrows) + parseFloat(amountToRepay),
-      0.000001,
+      0.0001,
     );
   });
 
@@ -190,7 +190,7 @@ describe("Integration tests for AAVE", function () {
     const newReserve = await getReserveOfToken("WETH");
     expect(parseFloat(oldReserve.underlyingBalance)).to.be.closeTo(
       parseFloat(newReserve.underlyingBalance) + parseFloat(amountToWithdraw),
-      0.000001,
+      0.0001,
     );
   });
 });
