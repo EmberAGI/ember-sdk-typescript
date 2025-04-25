@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM node:22-slim
 
 # Install protoc and essential build tools
 RUN apt-get update && apt-get install -y \

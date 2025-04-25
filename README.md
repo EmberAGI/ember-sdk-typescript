@@ -125,19 +125,22 @@ docker compose run --rm -e TEST_ENV=live sdk pnpm test
 ### Local Development
 
 If you prefer local development, you'll need:
-- Node.js >= 18
+- Node.js >= 22
 - pnpm
 - Protocol Buffers compiler (`protoc`)
 
-Then:
+First, perform the initial environment setup to install dependencies and fetch required submodules:
 ```bash
 # Install dependencies
 pnpm install
 
-# Generate gRPC code from proto files
-pnpm run generate-proto
+# Initialize and update git submodules (required for some features/tests)
+git submodule update --init --recursive
+```
 
-# Build the SDK
+Then, you can perform common development tasks:
+```bash
+# Build the SDK (this also runs generate-proto)
 pnpm run build
 
 # Run tests
@@ -161,6 +164,8 @@ pnpm tsx examples/langchain-swap.ts
 ```
 
 ## Testing
+
+> **Note:** Ensure you have completed the initial environment setup steps described in the [Local Development](#local-development) section before running tests locally.
 
 ### Anvil-powered tests
 
