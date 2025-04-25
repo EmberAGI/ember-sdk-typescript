@@ -4,7 +4,7 @@ submodule_dir=onchain-actions
 
 pushd "$submodule_dir"
 pnpm --ignore-workspace install
-pnpm --ignore-workspace run genGrpc
+#pnpm --ignore-workspace run genGrpc
 popd
 
 # Get the absolute path of the workspace
