@@ -17,6 +17,8 @@ import {
   GetTokensResponse,
   GetCapabilitiesRequest,
   GetCapabilitiesResponse,
+  GetPendleMarketsRequest,
+  GetPendleMarketsResponse,
   // WalletContext types
   GetWalletPositionsRequest,
   GetWalletPositionsResponse,
@@ -128,6 +130,27 @@ export class EmberGrpcClient implements EmberClient {
         metadata,
         options || {},
         (err: ServiceError | null, response?: GetCapabilitiesResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
+  getPendleMarkets(
+    request: GetPendleMarketsRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<GetPendleMarketsResponse> {
+    return new Promise((resolve, reject) => {
+      this.dataServiceClient.getPendleMarkets(
+        request,
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: GetPendleMarketsResponse) => {
           if (err || !response) {
             reject(err);
           } else {
