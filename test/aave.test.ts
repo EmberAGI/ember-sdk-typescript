@@ -9,18 +9,18 @@ import {
 } from "@emberai/sdk-typescript";
 import { Agent } from "../examples/aave-agent/agent";
 import { ensureWethBalance } from "./helpers/weth";
+import { CHAIN_CONFIGS } from "./chains";
+import { MultiChainSigner } from "./multichain-signer";
 
-dotenv.config();
+dotenv.config({ path: ".env" });
+dotenv.config({ path: ".env.tmp.test" });
 
-describe("Integration tests for AAVE", function () {
+describe("Integration tests for AAVE", async function () {
   this.timeout(50_000);
 
   let wallet: ethers.Wallet;
 
-  const mnemonic = process.env.MNEMONIC;
-  if (!mnemonic) {
-    throw new Error("MNEMONIC not found in the environment.");
-  }
+  const signer = await MultiChainSigner.fromEnv();
 
   const emberEndpoint = process.env.TEST_EMBER_ENDPOINT;
   if (!emberEndpoint) {
@@ -41,7 +41,7 @@ describe("Integration tests for AAVE", function () {
   // because we don't filter by adapter here
   const getReserveOfToken = async (name: string) => {
     const positionsResponse = (await client.getWalletPositions({
-      walletAddress: wallet.address,
+      walletAddress: signer.wallet.address,
     })) as GetWalletPositionsResponse;
 
     for (const position of positionsResponse.positions) {
@@ -71,9 +71,9 @@ describe("Integration tests for AAVE", function () {
         "Failed to connect, did you run `pnpm run start:anvil` first?",
       );
     }
-    wallet = ethers.Wallet.fromMnemonic(mnemonic);
-    const signer = wallet.connect(provider);
+
     client = new EmberGrpcClient(emberEndpoint);
+
     agent = new Agent(client, signer, wallet.address);
     // Mute logs
     agent.log = async () => {};
