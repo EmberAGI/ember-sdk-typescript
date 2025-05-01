@@ -31,11 +31,11 @@ describe("Integration tests for AAVE", async function () {
     throw new Error("MNEMONIC not found in the environment.");
   }
 
-  before(async function() {
+  before(async function () {
     try {
       // Create a single MultiChainSigner for all chains being tested
       multiChainSigner = await MultiChainSigner.fromTestChains(CHAINS_TO_TEST);
-      
+
       // Initialize Ember client
       client = new EmberGrpcClient(emberEndpoint);
     } catch (error) {
@@ -46,7 +46,7 @@ describe("Integration tests for AAVE", async function () {
 
   // Create a separate test suite for each chain
   for (const chainId of CHAINS_TO_TEST) {
-    describe(`Running tests on ${CHAIN_CONFIGS[chainId]?.name || `Chain ${chainId}`}`, function() {
+    describe(`Running tests on ${CHAIN_CONFIGS[chainId]?.name || `Chain ${chainId}`}`, function () {
       let agent: Agent;
 
       // Get wallet lending positions for current chain
@@ -67,33 +67,37 @@ describe("Integration tests for AAVE", async function () {
         return null;
       };
 
-      before(async function() {
+      before(async function () {
         // Verify that chain configuration exists
         if (!CHAIN_CONFIGS[chainId]) {
-          throw new Error(`Chain configuration missing for chain ID ${chainId}. Please add it to test/chains.ts.`);
+          throw new Error(
+            `Chain configuration missing for chain ID ${chainId}. Please add it to test/chains.ts.`,
+          );
         }
-        
+
         // Get WETH address from chain config
         const wethAddress = CHAIN_CONFIGS[chainId]?.wrappedNativeToken?.address;
         if (!wethAddress) {
-          throw new Error(`No wrapped native token (WETH) defined for chain ${chainId}. Please add wrappedNativeToken to the chain configuration in test/chains.ts.`);
+          throw new Error(
+            `No wrapped native token (WETH) defined for chain ${chainId}. Please add wrappedNativeToken to the chain configuration in test/chains.ts.`,
+          );
         }
-        
+
         // Create agent for this chain
         agent = new Agent(client, multiChainSigner);
-        
+
         // Mute logs
         agent.log = async () => {};
-        
+
         // Initialize agent
         await agent.init();
-        
+
         // Ensure WETH balance
         const signer = multiChainSigner.getSignerForChainId(chainId);
         await ensureWethBalance(signer, "1", wethAddress);
       });
 
-      after(async function() {
+      after(async function () {
         if (agent) {
           await agent.stop();
         }
@@ -227,7 +231,8 @@ describe("Integration tests for AAVE", async function () {
           throw new Error("WETH reserve not found after withdraw");
         }
         expect(parseFloat(oldReserve.underlyingBalance)).to.be.closeTo(
-          parseFloat(newReserve.underlyingBalance) + parseFloat(amountToWithdraw),
+          parseFloat(newReserve.underlyingBalance) +
+            parseFloat(amountToWithdraw),
           0.000001,
         );
       });

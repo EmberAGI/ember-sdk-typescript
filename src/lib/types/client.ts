@@ -78,10 +78,10 @@ export interface EmberClient {
   getWalletPositions(
     request: GetWalletPositionsRequest,
   ): Promise<GetWalletPositionsResponse>;
-  
+
   /** Pendle-specific methods */
   getPendleMarkets(
-    request: GetPendleMarketsRequest
+    request: GetPendleMarketsRequest,
   ): Promise<GetPendleMarketsResponse>;
 
   /** Close the client connection */

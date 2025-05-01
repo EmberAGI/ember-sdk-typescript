@@ -32,7 +32,7 @@ describe("Integration tests for Algebra (Camelot)", function () {
     throw new Error("MNEMONIC not found in the environment.");
   }
 
-  before(async function() {
+  before(async function () {
     try {
       // Create a single MultiChainSigner for all chains being tested
       multiChainSigner = await MultiChainSigner.fromTestChains(CHAINS_TO_TEST);
@@ -47,26 +47,32 @@ describe("Integration tests for Algebra (Camelot)", function () {
 
   // Create a separate test suite for each chain
   for (const chainId of CHAINS_TO_TEST) {
-    describe(`Running tests on ${CHAIN_CONFIGS[chainId]?.name || `Chain ${chainId}`}`, function() {
+    describe(`Running tests on ${CHAIN_CONFIGS[chainId]?.name || `Chain ${chainId}`}`, function () {
       let agent: Agent;
       let usdc: ERC20Wrapper;
 
-      before(async function() {
+      before(async function () {
         // Verify that chain configuration exists
         if (!CHAIN_CONFIGS[chainId]) {
-          throw new Error(`Chain configuration missing for chain ID ${chainId}. Please add it to test/chains.ts.`);
+          throw new Error(
+            `Chain configuration missing for chain ID ${chainId}. Please add it to test/chains.ts.`,
+          );
         }
 
         // Get WETH address from chain config
         const wethAddress = CHAIN_CONFIGS[chainId]?.wrappedNativeToken?.address;
         if (!wethAddress) {
-          throw new Error(`No wrapped native token (WETH) defined for chain ${chainId}. Please add wrappedNativeToken to the chain configuration in test/chains.ts.`);
+          throw new Error(
+            `No wrapped native token (WETH) defined for chain ${chainId}. Please add wrappedNativeToken to the chain configuration in test/chains.ts.`,
+          );
         }
 
         // Get USDC address from chain config
         const usdcAddress = CHAIN_CONFIGS[chainId]?.anotherToken?.address;
         if (!usdcAddress) {
-          throw new Error(`No secondary token (USDC) defined for chain ${chainId}. Please add anotherToken to the chain configuration in test/chains.ts.`);
+          throw new Error(
+            `No secondary token (USDC) defined for chain ${chainId}. Please add anotherToken to the chain configuration in test/chains.ts.`,
+          );
         }
 
         // Create agent for this chain
@@ -95,7 +101,7 @@ describe("Integration tests for Algebra (Camelot)", function () {
         // expect((await usdc.balanceOf(await signer.getAddress())).gte(1000_000_000)).to.be.true;
       });
 
-      after(async function() {
+      after(async function () {
         if (agent) {
           await agent.stop();
         }
@@ -117,13 +123,17 @@ describe("Integration tests for Algebra (Camelot)", function () {
           "print the price of the WETH/USDC liquidity pool without any extra output. Just the price number.",
         );
         const price = parseFloat(priceStr.content);
-        const usdcBalanceBefore = await usdc.balanceOf(await multiChainSigner.getAddress());
+        const usdcBalanceBefore = await usdc.balanceOf(
+          await multiChainSigner.getAddress(),
+        );
         const targetUSDCAmount = 0.01;
         const depositResponse = await agent.processUserInput(
           `Deposit ${targetUSDCAmount} USDC and ${(targetUSDCAmount / price).toFixed(6)} WETH within the range from ${(price * 0.8).toFixed(6)} to ${(price * 1.3).toFixed(6)}`,
         );
         assert.include(depositResponse.content.toLowerCase(), "done");
-        const usdcBalanceAfter = await usdc.balanceOf(await multiChainSigner.getAddress());
+        const usdcBalanceAfter = await usdc.balanceOf(
+          await multiChainSigner.getAddress(),
+        );
         assert(
           usdcBalanceBefore.sub(usdcBalanceAfter).gt(0),
           "USDC balance decreased",
@@ -134,7 +144,9 @@ describe("Integration tests for Algebra (Camelot)", function () {
       //https://github.com/EmberAGI/ember-sdk-typescript/issues/23
       // but we still check for exceptions
       it("should be able to list positions", async () => {
-        const _response = await agent.processUserInput("Show current positions");
+        const _response = await agent.processUserInput(
+          "Show current positions",
+        );
       });
     });
   }

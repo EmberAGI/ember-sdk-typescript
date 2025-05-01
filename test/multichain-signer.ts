@@ -57,11 +57,13 @@ export class MultiChainSigner {
    * Discovers all available anvil chains by checking each port starting from ANVIL_PORT
    * @returns An array of objects containing chainId and rpcUrl for each discovered chain
    */
-  private static async discoverChains(): Promise<Array<{ chainId: number; rpcUrl: string }>> {
+  private static async discoverChains(): Promise<
+    Array<{ chainId: number; rpcUrl: string }>
+  > {
     const startPort = parseInt(process.env.ANVIL_PORT || "3070");
     const discoveredChains: Array<{ chainId: number; rpcUrl: string }> = [];
     let currentPort = startPort;
-    
+
     // Try connecting to ports and discover chains
     while (true) {
       const rpcUrl = `http://localhost:${currentPort}`;
@@ -69,41 +71,48 @@ export class MultiChainSigner {
         const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
         // Add a short timeout to prevent hanging if the RPC is not responsive
         const networkPromise = provider.getNetwork();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Connection timed out")), 1000)
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Connection timed out")), 1000),
         );
-        
-        const network = await Promise.race([networkPromise, timeoutPromise]) as ethers.providers.Network;
-        
+
+        const network = (await Promise.race([
+          networkPromise,
+          timeoutPromise,
+        ])) as ethers.providers.Network;
+
         discoveredChains.push({
           chainId: network.chainId,
-          rpcUrl
+          rpcUrl,
         });
-        
+
         // Move to the next port
         currentPort++;
-      } catch (error) {
+      } catch (_error) {
         // If we can't connect to this port, we've likely found all chains
         break;
       }
     }
-    
+
     return discoveredChains;
   }
 
   /**
    * Create a MultiChainSigner for multiple test chains, discovering available anvil instances
-   * 
+   *
    * @param chainIdsToTest Array of chain IDs that should be available for testing
    * @param mnemonic Optional mnemonic to use for wallet initialization
    * @returns MultiChainSigner configured with all required chains
    * @throws Error if any of the required chains cannot be discovered
    */
-  static async fromTestChains(chainIdsToTest: number[]): Promise<MultiChainSigner> {
+  static async fromTestChains(
+    chainIdsToTest: number[],
+  ): Promise<MultiChainSigner> {
     // If a mnemonic is provided, use it; otherwise, get it from the environment
     const mnemonic = process.env.MNEMONIC;
     if (!mnemonic) {
-      throw new Error("Mnemonic not found. Please provide a mnemonic or set MNEMONIC in .env");
+      throw new Error(
+        "Mnemonic not found. Please provide a mnemonic or set MNEMONIC in .env",
+      );
     }
 
     // Create wallet from mnemonic
@@ -112,22 +121,33 @@ export class MultiChainSigner {
 
     // Discover available chains
     const availableChains = await MultiChainSigner.discoverChains();
-    
+
     if (availableChains.length === 0) {
-      throw new Error("No anvil instances found. Did you run `pnpm run start:anvil` first?");
+      throw new Error(
+        "No anvil instances found. Did you run `pnpm run start:anvil` first?",
+      );
     }
 
     // Log discovered chains
-    console.log("Discovered chains:\n" + availableChains.map(chain => 
-      `- Chain ID: ${chain.chainId}, RPC URL: ${chain.rpcUrl}`
-    ).join("\n"));
-    
+    console.log(
+      "Discovered chains:\n" +
+        availableChains
+          .map(
+            (chain) => `- Chain ID: ${chain.chainId}, RPC URL: ${chain.rpcUrl}`,
+          )
+          .join("\n"),
+    );
+
     // Verify all required chains are available
-    const availableChainIds = availableChains.map(chain => chain.chainId);
-    const missingChains = chainIdsToTest.filter(id => !availableChainIds.includes(id));
-    
+    const availableChainIds = availableChains.map((chain) => chain.chainId);
+    const missingChains = chainIdsToTest.filter(
+      (id) => !availableChainIds.includes(id),
+    );
+
     if (missingChains.length > 0) {
-      throw new Error(`Required chain IDs not available: ${missingChains.join(', ')}. Available chains: ${availableChainIds.join(', ')}`);
+      throw new Error(
+        `Required chain IDs not available: ${missingChains.join(", ")}. Available chains: ${availableChainIds.join(", ")}`,
+      );
     }
 
     // Build chain configs and signers for all required chains
@@ -136,14 +156,14 @@ export class MultiChainSigner {
 
     for (const chainId of chainIdsToTest) {
       // Find the chain in available chains
-      const chain = availableChains.find(c => c.chainId === chainId)!;
-      
+      const chain = availableChains.find((c) => c.chainId === chainId)!;
+
       // Create provider for the chain
       const provider = new ethers.providers.JsonRpcProvider(chain.rpcUrl);
-      
+
       // Create signer for the chain
       const signer = wallet.connect(provider);
-      
+
       // Find if we have a predefined chain config
       let chainConfig: ChainConfig;
       if (CHAIN_CONFIGS[chainId]) {
@@ -151,21 +171,23 @@ export class MultiChainSigner {
         chainConfig = {
           ...CHAIN_CONFIGS[chainId],
           // Override RPC URL with the test provider's URL
-          rpcUrl: chain.rpcUrl
+          rpcUrl: chain.rpcUrl,
         };
       } else {
         // Create a minimal chain config
         chainConfig = {
           name: `Test Chain ${chainId}`,
           varName: `TEST_CHAIN_${chainId}`,
-          rpcUrl: chain.rpcUrl
+          rpcUrl: chain.rpcUrl,
         };
       }
-      
+
       chains[chainId] = chainConfig;
       signers[chainId] = signer;
-      
-      console.log(`Test chain enabled: ${chainConfig.name} (ID: ${chainId}), RPC: ${chainConfig.rpcUrl}`);
+
+      console.log(
+        `Test chain enabled: ${chainConfig.name} (ID: ${chainId}), RPC: ${chainConfig.rpcUrl}`,
+      );
     }
 
     return new MultiChainSigner(chains, signers, wallet);
