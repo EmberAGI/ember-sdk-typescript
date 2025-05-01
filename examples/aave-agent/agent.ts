@@ -88,7 +88,6 @@ export class Agent {
     const lendingCapabilities = (await this.client.getCapabilities({
       type: CapabilityType.LENDING_MARKET,
     })) as GetCapabilitiesResponse;
-
     // Process capabilities and build tokenMap
     const processCapability = (capability: Capability) => {
       if (capability.lendingCapability) {

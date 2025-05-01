@@ -25,8 +25,8 @@ export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
       address: "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
     },
     anotherToken: {
-      name: "WETH",
-      address: "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+      name: "USDC",
+      address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
     },
   },
   421614: {
@@ -62,5 +62,13 @@ export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
     rpcUrl:
       process.env.BASE_CHAIN_RPC_URL || "https://base.gateway.tenderly.co",
     varName: "BASE_CHAIN",
+    wrappedNativeToken: {
+      name: "WETH",
+      address: "0x4200000000000000000000000000000000000006",
+    },
+    anotherToken: {
+      name: "USDC",
+      address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+    },    
   },
 };
