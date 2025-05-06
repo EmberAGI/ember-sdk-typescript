@@ -26,8 +26,8 @@ import type {
   GetLiquidityPoolsResponse,
   GetUserLiquidityPositionsRequest,
   GetUserLiquidityPositionsResponse,
-  GetPendleMarketsRequest,
-  GetPendleMarketsResponse,
+  GetYieldMarketsRequest,
+  GetYieldMarketsResponse,
 } from "../../generated/onchain-actions/onchain_actions.js";
 
 export interface EmberClientConfig {
@@ -79,10 +79,9 @@ export interface EmberClient {
     request: GetWalletPositionsRequest,
   ): Promise<GetWalletPositionsResponse>;
 
-  /** Pendle-specific methods */
-  getPendleMarkets(
-    request: GetPendleMarketsRequest,
-  ): Promise<GetPendleMarketsResponse>;
+  getYieldMarkets(
+    request: GetYieldMarketsRequest,
+  ): Promise<GetYieldMarketsResponse>;
 
   /** Close the client connection */
   close(): void;

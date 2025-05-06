@@ -30,7 +30,6 @@
     "generate-proto": "pnpm run lint:require-submodule && ./scripts/generate-proto.sh",
     "agent:aave": "NODE_OPTIONS=--no-deprecation npx tsx examples/aave-agent/index.ts",
     "agent:camelot": "NODE_OPTIONS=--no-deprecation npx tsx --no-warnings examples/camelot-agent/index.ts",
-    "agent:pendle": "NODE_OPTIONS=--no-deprecation npx tsx --no-warnings examples/pendle-agent/index.ts",
     "start:anvil": "pnpm run lint:require-submodule && npx tsx test/start-anvil.ts",
     "start:mainnet": "pnpm run lint:require-submodule && npx tsx test/start-mainnet.ts"
   },
