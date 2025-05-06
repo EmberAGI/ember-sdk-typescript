@@ -1,14 +1,5 @@
 import { ethers, Contract, providers, BigNumber } from "ethers";
-
-// Minimal ERC20 ABI
-const ERC20_ABI = [
-  "function name() view returns (string)",
-  "function symbol() view returns (string)",
-  "function decimals() view returns (uint8)",
-  "function totalSupply() view returns (uint256)",
-  "function balanceOf(address owner) view returns (uint256)",
-  "function transfer(address to, uint256 amount) returns (bool)",
-];
+import IERC20MetadataJSON from "@openzeppelin/contracts/build/contracts/IERC20Metadata.json";
 
 export class ERC20Wrapper {
   provider: providers.Provider;
@@ -21,7 +12,7 @@ export class ERC20Wrapper {
    */
   constructor(provider: providers.Provider, contractAddress: string) {
     this.provider = provider;
-    this.contract = new Contract(contractAddress, ERC20_ABI, provider);
+    this.contract = new Contract(contractAddress, IERC20MetadataJSON.abi, provider);
   }
 
   /**
