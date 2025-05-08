@@ -12,7 +12,11 @@ export class ERC20Wrapper {
    */
   constructor(provider: providers.Provider, contractAddress: string) {
     this.provider = provider;
-    this.contract = new Contract(contractAddress, IERC20MetadataJSON.abi, provider);
+    this.contract = new Contract(
+      contractAddress,
+      IERC20MetadataJSON.abi,
+      provider,
+    );
   }
 
   /**
