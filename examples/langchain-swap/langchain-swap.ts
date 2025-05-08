@@ -110,29 +110,32 @@ class SwapTokensTool extends StructuredTool {
       recipient,
     });
 
-    // Check if we have a valid transaction plan
-    if (!swap.transactionPlan) {
-      throw new Error("No transaction plan received");
+    // Check if we have valid transactions
+    if (!swap.transactions || swap.transactions.length === 0) {
+      throw new Error("No transactions received");
     }
 
+    // Get the main transaction (typically the last one after approvals)
+    const transaction = swap.transactions[swap.transactions.length - 1];
+
     // Verify this is an EVM transaction
-    if (swap.transactionPlan.type !== TransactionType.EVM_TX) {
+    if (transaction.type !== TransactionType.EVM_TX) {
       throw new Error("Expected EVM transaction");
     }
 
     // Get the latest gas estimate
     const gasEstimate = await this.publicClient.estimateGas({
       account: recipient,
-      to: swap.transactionPlan.to as `0x${string}`,
-      data: swap.transactionPlan.data as `0x${string}`,
-      value: BigInt(swap.transactionPlan.value || "0"),
+      to: transaction.to as `0x${string}`,
+      data: transaction.data as `0x${string}`,
+      value: BigInt(transaction.value || "0"),
     });
 
     // Send the transaction
     const hash = await this.walletClient.sendTransaction({
-      to: swap.transactionPlan.to as `0x${string}`,
-      data: swap.transactionPlan.data as `0x${string}`,
-      value: BigInt(swap.transactionPlan.value || "0"),
+      to: transaction.to as `0x${string}`,
+      data: transaction.data as `0x${string}`,
+      value: BigInt(transaction.value || "0"),
       gas: gasEstimate,
     });
 

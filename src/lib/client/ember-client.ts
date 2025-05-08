@@ -17,6 +17,8 @@ import {
   GetTokensResponse,
   GetCapabilitiesRequest,
   GetCapabilitiesResponse,
+  GetYieldMarketsRequest,
+  GetYieldMarketsResponse,
   // WalletContext types
   GetWalletPositionsRequest,
   GetWalletPositionsResponse,
@@ -136,6 +138,39 @@ export class EmberGrpcClient implements EmberClient {
         },
       );
     });
+  }
+
+  // New method using the updated names
+  getYieldMarkets(
+    request: GetYieldMarketsRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<GetYieldMarketsResponse> {
+    return new Promise((resolve, reject) => {
+      this.dataServiceClient.getYieldMarkets(
+        request,
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: GetYieldMarketsResponse) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
+  // For backwards compatibility, keep the old method but mark as deprecated
+  /** @deprecated Use getYieldMarkets instead */
+  getPendleMarkets(
+    request: GetYieldMarketsRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<GetYieldMarketsResponse> {
+    console.warn("getPendleMarkets is deprecated, use getYieldMarkets instead");
+    return this.getYieldMarkets(request, metadata, options);
   }
 
   // WalletContext method

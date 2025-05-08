@@ -11,10 +11,22 @@ importers:
       '@bufbuild/protobuf':
         specifier: ^2.2.3
         version: 2.2.3
+      '@openzeppelin/contracts':
+        specifier: ^5.3.0
+        version: 5.3.0
+      p-retry:
+        specifier: ^6.2.1
+        version: 6.2.1
+      ts-pattern:
+        specifier: ^5.7.0
+        version: 5.7.0
     devDependencies:
       '@eslint/js':
         specifier: ^9.18.0
         version: 9.22.0
+      '@ethersproject/abstract-provider':
+        specifier: ^5.8.0
+        version: 5.8.0
       '@grpc/grpc-js':
         specifier: ^1.12.5
         version: 1.12.5
@@ -886,6 +898,9 @@ packages:
   '@octokit/types@13.8.0':
     resolution: {integrity: sha512-x7DjTIbEpEWXK99DMd01QfWy0hd5h4EN+Q7shkdKds3otGQP+oWE/y0A76i1OvH9fygo4ddvNf7ZvF0t78P98A==}
 
+  '@openzeppelin/contracts@5.3.0':
+    resolution: {integrity: sha512-zj/KGoW7zxWUE8qOI++rUM18v+VeLTTzKs/DJFkSzHpQFPD/jKKF0TrMxBfGLl3kpdELCNccvB3zmofSzm4nlA==}
+
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
@@ -1016,6 +1031,9 @@ packages:
 
   '@types/retry@0.12.0':
     resolution: {integrity: sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==}
+
+  '@types/retry@0.12.2':
+    resolution: {integrity: sha512-XISRgDJ2Tc5q4TRqvgJtzsRkFYNJzZrhTdtMoGVBttwzzQJkPnS3WWTFc7kuDRoPtPakl+T+OfdEUjYJj7Jbow==}
 
   '@types/semver@7.5.8':
     resolution: {integrity: sha512-I8EUhyrgfLrcTkzV3TSsGyl1tSuPrEDzr0yd5m90UgNxQkyDXULk3b6MlQqTCpZpNtWe1K0hzclnZkTcLBe2UQ==}
@@ -1967,6 +1985,10 @@ packages:
     resolution: {integrity: sha512-xelSayHH36ZgE7ZWhli7pW34hNbNl8Ojv5KVmkJD4hBdD3th8Tfk9vYasLM+mXWOZhFkgZfxhLSnrwRr4elSSg==}
     engines: {node: '>=0.10.0'}
 
+  is-network-error@1.1.0:
+    resolution: {integrity: sha512-tUdRRAnhT+OtCZR/LxZelH/C7QtjtFrTu5tXCA8pl55eTUElUHT+GPYV8MBMBvea/j+NxQqVt3LbWMRir7Gx9g==}
+    engines: {node: '>=16'}
+
   is-number@7.0.0:
     resolution: {integrity: sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==}
     engines: {node: '>=0.12.0'}
@@ -2644,6 +2666,10 @@ packages:
     resolution: {integrity: sha512-312Id396EbJdvRONlngUx0NydfrIQ5lsYu0znKVUzVvArzEIt08V1qhtyESbGVd1FGX7UKtiFp5uwKZdM8wIuQ==}
     engines: {node: '>=8'}
 
+  p-retry@6.2.1:
+    resolution: {integrity: sha512-hEt02O4hUct5wtwg4H4KcWgDdm+l1bOaEy/hWzd8xtXB9BqxTWBBhb+2ImAtH4Cv4rPjV76xN3Zumqk3k3AhhQ==}
+    engines: {node: '>=16.17'}
+
   p-timeout@3.2.0:
     resolution: {integrity: sha512-rhIwUycgwwKcP9yTOOFK/AKsAopjjCakVqLHePO3CC6Mir1Z99xT+R63jZxAT5lFZLa2inS5h+ZS2GvR99/FBg==}
     engines: {node: '>=8'}
@@ -3039,6 +3065,9 @@ packages:
     engines: {node: '>=18.12'}
     peerDependencies:
       typescript: '>=4.8.4'
+
+  ts-pattern@5.7.0:
+    resolution: {integrity: sha512-0/FvIG4g3kNkYgbNwBBW5pZBkfpeYQnH+2AA3xmjkCAit/DSDPKmgwC3fKof4oYUq6gupClVOJlFl+939VRBMg==}
 
   ts-poet@6.9.0:
     resolution: {integrity: sha512-roe6W6MeZmCjRmppyfOURklO5tQFQ6Sg7swURKkwYJvV7dbGCrK28um5+51iW3twdPRKtwarqFAVMU6G1mvnuQ==}
@@ -3884,6 +3913,8 @@ snapshots:
     dependencies:
       '@octokit/openapi-types': 23.0.1
 
+  '@openzeppelin/contracts@5.3.0': {}
+
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
@@ -4046,6 +4077,8 @@ snapshots:
   '@types/normalize-package-data@2.4.4': {}
 
   '@types/retry@0.12.0': {}
+
+  '@types/retry@0.12.2': {}
 
   '@types/semver@7.5.8': {}
 
@@ -5084,6 +5117,8 @@ snapshots:
     dependencies:
       is-extglob: 2.1.1
 
+  is-network-error@1.1.0: {}
+
   is-number@7.0.0: {}
 
   is-obj@2.0.0: {}
@@ -5600,6 +5635,12 @@ snapshots:
       '@types/retry': 0.12.0
       retry: 0.13.1
 
+  p-retry@6.2.1:
+    dependencies:
+      '@types/retry': 0.12.2
+      is-network-error: 1.1.0
+      retry: 0.13.1
+
   p-timeout@3.2.0:
     dependencies:
       p-finally: 1.0.0
@@ -6008,6 +6049,8 @@ snapshots:
   ts-api-utils@2.0.1(typescript@5.7.3):
     dependencies:
       typescript: 5.7.3
+
+  ts-pattern@5.7.0: {}
 
   ts-poet@6.9.0:
     dependencies:

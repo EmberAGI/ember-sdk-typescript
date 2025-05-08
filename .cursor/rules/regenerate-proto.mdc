@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+This project includes machinery for regenerating typescript files based on protobuf definitions. NEVER manually edit generated typescript files in `onchain_actions.ts`. Use onchain-actions/package.json and ./package.json to figure out how to rebuild them. the main repo and onchain-actions git submodule use separate machinery for rebuilding the typescript definitions based on protobuf, but they both use the same protobuf file as the source of truth.

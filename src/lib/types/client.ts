@@ -26,6 +26,8 @@ import type {
   GetLiquidityPoolsResponse,
   GetUserLiquidityPositionsRequest,
   GetUserLiquidityPositionsResponse,
+  GetYieldMarketsRequest,
+  GetYieldMarketsResponse,
 } from "../../generated/onchain-actions/onchain_actions.js";
 
 export interface EmberClientConfig {
@@ -76,6 +78,10 @@ export interface EmberClient {
   getWalletPositions(
     request: GetWalletPositionsRequest,
   ): Promise<GetWalletPositionsResponse>;
+
+  getYieldMarkets(
+    request: GetYieldMarketsRequest,
+  ): Promise<GetYieldMarketsResponse>;
 
   /** Close the client connection */
   close(): void;
