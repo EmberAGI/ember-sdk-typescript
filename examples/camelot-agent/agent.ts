@@ -362,7 +362,12 @@ Rules:
       output += `${i} - ${pos.symbol0}/${pos.symbol1}
   ${pos.amount0} of ${pos.symbol0}
   ${pos.amount1} of ${pos.symbol1}
-  price: ${pos.price}\n`;
+  current price: ${pos.price}
+  price range: ${
+    pos.positionRange
+      ? pos.positionRange.fromPrice + " to " + pos.positionRange.toPrice
+      : "0 to ∞"
+  }\n`;
     });
     return output;
   }
