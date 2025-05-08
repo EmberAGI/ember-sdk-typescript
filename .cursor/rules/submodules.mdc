@@ -1,0 +1,7 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+This project uses a git submodule stored in `./onchain-actions`
+when perfrorming git operations, you must ensure you are refering to the correct repository: the root or onchain-actions.
