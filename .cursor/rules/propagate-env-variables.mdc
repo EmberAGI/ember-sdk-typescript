@@ -1,0 +1,6 @@
+---
+description: Rules for CI setup updating (environment variables)
+globs: 
+alwaysApply: false
+---
+When adding new adapters, make sure you propagate environment variables to CI properly. Check out github action's ci.yml to ensure the environment variables are propagated from github actions environment secrets. 
