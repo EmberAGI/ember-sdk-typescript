@@ -15,6 +15,7 @@ jobs:
       MNEMONIC: ${{ secrets.MNEMONIC }}
       SQUID_INTEGRATOR_ID: ${{ secrets.SQUID_INTEGRATOR_ID }}
       COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
+      DUNE_API_KEY: ${{ secrets.DUNE_API_KEY }} 
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the repo
