@@ -33,7 +33,8 @@ describe("Wallet Balances Tests", function () {
     const request: GetWalletBalancesRequest = {
       walletAddress: testWalletAddress,
     };
-    const response: GetWalletBalancesResponse = await client.getWalletBalances(request);    
+    const response: GetWalletBalancesResponse =
+      await client.getWalletBalances(request);
     expect(response.balances.length).to.be.greaterThan(0);
   });
 
