@@ -24,6 +24,8 @@ import {
   GetWalletPositionsResponse,
   GetUserLiquidityPositionsRequest,
   GetUserLiquidityPositionsResponse,
+  GetWalletBalancesRequest,
+  GetWalletBalancesResponse,
   // CreateTransaction types
   SwapTokensRequest,
   SwapTokensResponse,
@@ -209,6 +211,27 @@ export class EmberGrpcClient implements EmberClient {
           err: ServiceError | null,
           response?: GetUserLiquidityPositionsResponse,
         ) => {
+          if (err || !response) {
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        },
+      );
+    });
+  }
+
+  getWalletBalances(
+    request: GetWalletBalancesRequest,
+    metadata: Metadata = new Metadata(),
+    options?: Partial<CallOptions>,
+  ): Promise<GetWalletBalancesResponse> {
+    return new Promise((resolve, reject) => {
+      this.walletContextClient.getWalletBalances(
+        request,
+        metadata,
+        options || {},
+        (err: ServiceError | null, response?: GetWalletBalancesResponse) => {
           if (err || !response) {
             reject(err);
           } else {
