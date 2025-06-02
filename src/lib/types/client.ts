@@ -30,6 +30,8 @@ import type {
   GetYieldMarketsResponse,
   GetWalletBalancesRequest,
   GetWalletBalancesResponse,
+  GetMarketDataRequest,
+  GetMarketDataResponse,
 } from "../../generated/onchain-actions/onchain_actions.js";
 
 export interface EmberClientConfig {
@@ -88,6 +90,8 @@ export interface EmberClient {
   getYieldMarkets(
     request: GetYieldMarketsRequest,
   ): Promise<GetYieldMarketsResponse>;
+
+  getMarketData(request: GetMarketDataRequest): Promise<GetMarketDataResponse>;
 
   /** Close the client connection */
   close(): void;
