@@ -108,134 +108,141 @@ describe("Integration tests for AAVE", async function () {
         expect(response.content.toLowerCase()).to.contain("borrow");
       });
 
-      it("supply some WETH", async () => {
-        const amountToSupply = "0.01";
+      // Test both native ETH and wrapped ETH
+      const tokensToTest = ["ETH", "WETH"];
+      
+      for (const tokenName of tokensToTest) {
+        describe(`Testing ${tokenName} operations`, function () {
+          it(`supply some ${tokenName}`, async () => {
+            const amountToSupply = "0.01";
 
-        // Get original balance
-        const oldReserve = await getReserveOfToken("WETH");
-        if (!oldReserve) {
-          throw new Error("WETH reserve not found");
-        }
+            // Get original balance
+            const oldReserve = await getReserveOfToken("WETH");
+            if (!oldReserve) {
+              throw new Error("WETH reserve not found");
+            }
 
-        // supply some WETH
-        const response = await agent.processUserInput(
-          `supply ${amountToSupply} Wrapped ETH`,
-        );
-        expect(response.function_call!.name).to.be.equal("supply");
-        expect(JSON.parse(response.function_call!.arguments)).to.be.deep.equal({
-          tokenName: "Wrapped ETH",
-          amount: amountToSupply,
+            // supply some token
+            const response = await agent.processUserInput(
+              `supply ${amountToSupply} ${tokenName}`,
+            );
+            expect(response.function_call!.name).to.be.equal("supply");
+            expect(JSON.parse(response.function_call!.arguments)).to.be.deep.equal({
+              tokenName: 'Wrapped ETH', // Agent always resolves to underlying WETH token
+              amount: amountToSupply,
+            });
+
+            // Check the new balance increased - both ETH and WETH should affect the same underlying WETH reserve
+            const newReserve = await getReserveOfToken("WETH");
+            if (!newReserve) {
+              throw new Error("WETH reserve not found after supply");
+            }
+            expect(parseFloat(oldReserve.underlyingBalance)).to.be.closeTo(
+              parseFloat(newReserve.underlyingBalance) - parseFloat(amountToSupply),
+              0.00001,
+            );
+          });
+
+          // Depends on the above test for collateral
+          it(`borrow some ${tokenName}`, async () => {
+            const amountToBorrow = "0.005";
+
+            // Get original balance
+            const oldReserve = await getReserveOfToken("WETH");
+            if (!oldReserve) {
+              throw new Error("WETH reserve not found");
+            }
+
+            // Borrow some token
+            const response = await agent.processUserInput(
+              `borrow ${amountToBorrow} ${tokenName}`,
+            );
+            expect(response.function_call!.name).to.be.equal("borrow");
+            expect(JSON.parse(response.function_call!.arguments)).to.be.deep.equal({
+              tokenName: 'Wrapped ETH', // Agent always resolves to underlying WETH token
+              amount: amountToBorrow,
+            });
+
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+
+            // Check the new borrow amount increase
+            const newReserve = await getReserveOfToken("WETH");
+            if (!newReserve) {
+              throw new Error("WETH reserve not found after borrow");
+            }
+            expect(parseFloat(oldReserve.totalBorrows)).to.be.closeTo(
+              parseFloat(newReserve.totalBorrows) - parseFloat(amountToBorrow),
+              0.000001,
+            );
+          });
+
+          it(`show my positions after ${tokenName} operations`, async () => {
+            // Just to make sure there are no exceptions
+            await agent.processUserInput(`show my positions`);
+          });
+
+          // Depends on the above test (the loan must exist)
+          it(`repay some ${tokenName}`, async () => {
+            const amountToRepay = "0.005";
+
+            // Get original balance
+            const oldReserve = await getReserveOfToken("WETH");
+            if (!oldReserve) {
+              throw new Error("WETH reserve not found");
+            }
+
+            const response = await agent.processUserInput(
+              `repay ${amountToRepay} ${tokenName}`,
+            );
+            expect(response.function_call!.name).to.be.equal("repay");
+            expect(JSON.parse(response.function_call!.arguments)).to.be.deep.equal({
+              tokenName: 'Wrapped ETH', // Agent always resolves to underlying WETH token
+              amount: amountToRepay,
+            });
+
+            // Check the new borrow amount decrease
+            const newReserve = await getReserveOfToken("WETH");
+            if (!newReserve) {
+              throw new Error("WETH reserve not found after repay");
+            }
+            expect(parseFloat(oldReserve.totalBorrows)).to.be.closeTo(
+              parseFloat(newReserve.totalBorrows) + parseFloat(amountToRepay),
+              0.000001,
+            );
+          });
+
+          // Depends on the above test (the deposit must exist)
+          it(`withdraw some ${tokenName}`, async () => {
+            const amountToWithdraw = "0.004";
+
+            // Get original balance
+            const oldReserve = await getReserveOfToken("WETH");
+            if (!oldReserve) {
+              throw new Error("WETH reserve not found");
+            }
+
+            const response = await agent.processUserInput(
+              `withdraw ${amountToWithdraw} ${tokenName}`,
+            );
+            expect(response.function_call!.name).to.be.equal("withdraw");
+            expect(JSON.parse(response.function_call!.arguments)).to.be.deep.equal({
+              tokenName: 'Wrapped ETH', // Agent always resolves to underlying WETH token
+              amount: amountToWithdraw,
+            });
+
+            // Check the new balance amount decrease
+            const newReserve = await getReserveOfToken("WETH");
+            if (!newReserve) {
+              throw new Error("WETH reserve not found after withdraw");
+            }
+            expect(parseFloat(oldReserve.underlyingBalance)).to.be.closeTo(
+              parseFloat(newReserve.underlyingBalance) +
+                parseFloat(amountToWithdraw),
+              0.000001,
+            );
+          });
         });
-
-        // Check the new balance increased
-        const newReserve = await getReserveOfToken("WETH");
-        if (!newReserve) {
-          throw new Error("WETH reserve not found after supply");
-        }
-        expect(parseFloat(oldReserve.underlyingBalance)).to.be.closeTo(
-          parseFloat(newReserve.underlyingBalance) - parseFloat(amountToSupply),
-          0.00001,
-        );
-      });
-
-      // Depends on the above test for collateral
-      it("borrow some WETH", async () => {
-        const amountToBorrow = "0.005";
-
-        // Get original balance
-        const oldReserve = await getReserveOfToken("WETH");
-        if (!oldReserve) {
-          throw new Error("WETH reserve not found");
-        }
-
-        // Borrow some WETH
-        const response = await agent.processUserInput(
-          `borrow ${amountToBorrow} Wrapped ETH`,
-        );
-        expect(response.function_call!.name).to.be.equal("borrow");
-        expect(JSON.parse(response.function_call!.arguments)).to.be.deep.equal({
-          tokenName: "Wrapped ETH",
-          amount: amountToBorrow,
-        });
-
-        await new Promise((resolve) => setTimeout(resolve, 5000));
-
-        // Check the new borrow amount increase
-        const newReserve = await getReserveOfToken("WETH");
-        if (!newReserve) {
-          throw new Error("WETH reserve not found after borrow");
-        }
-        expect(parseFloat(oldReserve.totalBorrows)).to.be.closeTo(
-          parseFloat(newReserve.totalBorrows) - parseFloat(amountToBorrow),
-          0.000001,
-        );
-      });
-
-      it("show my positions", async () => {
-        // Just to make sure there are no exceptions
-        await agent.processUserInput(`show my positions`);
-      });
-
-      // Depends on the above test (the loan must exist)
-      it("repay some WETH", async () => {
-        const amountToRepay = "0.005";
-
-        // Get original balance
-        const oldReserve = await getReserveOfToken("WETH");
-        if (!oldReserve) {
-          throw new Error("WETH reserve not found");
-        }
-
-        const response = await agent.processUserInput(
-          `repay ${amountToRepay} Wrapped ETH`,
-        );
-        expect(response.function_call!.name).to.be.equal("repay");
-        expect(JSON.parse(response.function_call!.arguments)).to.be.deep.equal({
-          tokenName: "Wrapped ETH",
-          amount: amountToRepay,
-        });
-
-        // Check the new borrow amount decrease
-        const newReserve = await getReserveOfToken("WETH");
-        if (!newReserve) {
-          throw new Error("WETH reserve not found after repay");
-        }
-        expect(parseFloat(oldReserve.totalBorrows)).to.be.closeTo(
-          parseFloat(newReserve.totalBorrows) + parseFloat(amountToRepay),
-          0.000001,
-        );
-      });
-
-      // Depends on the above test (the deposit must exist)
-      it("withdraw some WETH", async () => {
-        const amountToWithdraw = "0.004";
-
-        // Get original balance
-        const oldReserve = await getReserveOfToken("WETH");
-        if (!oldReserve) {
-          throw new Error("WETH reserve not found");
-        }
-
-        const response = await agent.processUserInput(
-          `withdraw ${amountToWithdraw} Wrapped ETH`,
-        );
-        expect(response.function_call!.name).to.be.equal("withdraw");
-        expect(JSON.parse(response.function_call!.arguments)).to.be.deep.equal({
-          tokenName: "Wrapped ETH",
-          amount: amountToWithdraw,
-        });
-
-        // Check the new balance amount decrease
-        const newReserve = await getReserveOfToken("WETH");
-        if (!newReserve) {
-          throw new Error("WETH reserve not found after withdraw");
-        }
-        expect(parseFloat(oldReserve.underlyingBalance)).to.be.closeTo(
-          parseFloat(newReserve.underlyingBalance) +
-            parseFloat(amountToWithdraw),
-          0.000001,
-        );
-      });
+      }
     });
   }
 });
