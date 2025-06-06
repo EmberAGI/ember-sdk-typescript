@@ -88,7 +88,7 @@ describe(
     it("should be able to deposit liquidity", async () => {
       await agent.processUserInput("list liquidity pools");
       const priceStr = await agent.processUserInput(
-        `print the price of the ${chainConfig.wrappedNativeToken!.name}/${chainConfig.anotherToken!.name} liquidity pool without any extra output. Just the price number.`,
+        `print the price of the ETH/${chainConfig.anotherToken!.name} liquidity pool without any extra output. Just the price number.`,
       );
       const price = parseFloat(priceStr.content);
       const anotherTokenBalanceBefore = await anotherToken.balanceOf(
@@ -96,7 +96,7 @@ describe(
       );
       const targetTokenAmount = 0.05;
       const depositResponse = await agent.processUserInput(
-        `Deposit ${targetTokenAmount} ${chainConfig.anotherToken!.name} and ${(targetTokenAmount / price).toFixed(6)} ${chainConfig.wrappedNativeToken!.name} within the range from ${(price * 0.8).toFixed(6)} to ${(price * 1.3).toFixed(6)}`,
+        `Deposit ${targetTokenAmount} ${chainConfig.anotherToken!.name} and ${(targetTokenAmount / price).toFixed(6)} ETH within the range from ${(price * 0.8).toFixed(6)} to ${(price * 1.3).toFixed(6)}`,
       );
       assert.include(depositResponse.content.toLowerCase(), "done");
       const anotherTokenBalanceAfter = await anotherToken.balanceOf(
@@ -116,7 +116,7 @@ describe(
     it("should be able to list positions", async () => {
       await new Promise((resolve) => setTimeout(resolve, 10_000));
       const response = await agent.processUserInput("Show current positions");
-      assert.include(response.content, "WETH/USDC");
+      assert.include(response.content, "ETH/USDC");
     });
 
     it("close the position", async () => {

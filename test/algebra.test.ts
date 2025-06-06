@@ -148,6 +148,78 @@ describe("Integration tests for Algebra (Camelot)", function () {
           "Show current positions",
         );
       });
+
+      // Native ETH support tests
+      describe("Native ETH Support", function () {
+        it("should support native ETH in capabilities", async () => {
+          const capabilitiesResponse = await agent.processUserInput(
+            "What liquidity pools support ETH?",
+          );
+          expect(capabilitiesResponse.content.toLowerCase()).to.contain("eth");
+        });
+
+        it("should be able to deposit native ETH liquidity", async () => {
+          const ethBalanceBefore = await multiChainSigner
+            .getSignerForChainId(chainId)
+            .getBalance();
+
+          const usdcBalanceBefore = await usdc.balanceOf(
+            await multiChainSigner.getAddress(),
+          );
+
+          // Get current ETH price for appropriate amounts
+          const priceStr = await agent.processUserInput(
+            "print the price of the ETH/USDC liquidity pool without any extra output. Just the price number.",
+          );
+          const price = parseFloat(priceStr.content);
+
+          const targetETHAmount = 0.001; // Small amount for testing
+          const targetUSDCAmount = targetETHAmount * price;
+
+          const depositResponse = await agent.processUserInput(
+            `Deposit ${targetETHAmount} ETH and ${targetUSDCAmount.toFixed(2)} USDC into liquidity pool within the range from ${(price * 0.9).toFixed(2)} to ${(price * 1.1).toFixed(2)}`,
+          );
+
+          expect(depositResponse.content.toLowerCase()).to.contain("done");
+
+          // Verify ETH balance decreased (accounting for gas)
+          const ethBalanceAfter = await multiChainSigner
+            .getSignerForChainId(chainId)
+            .getBalance();
+          expect(ethBalanceBefore.gt(ethBalanceAfter)).to.be.true;
+
+          // Verify USDC balance decreased
+          const usdcBalanceAfter = await usdc.balanceOf(
+            await multiChainSigner.getAddress(),
+          );
+          expect(usdcBalanceBefore.gt(usdcBalanceAfter)).to.be.true;
+        });
+
+        it("should handle ETH/USDC price queries and prices should be equal for ETH and WETH", async () => {
+          const ethPriceResponse = await agent.processUserInput(
+            "print the price of the ETH/USDC liquidity pool without any extra output. Just the price number.",
+          );
+          const ethPrice = parseFloat(ethPriceResponse.content);
+          expect(ethPrice).to.be.a("number").and.to.be.gt(0);
+
+          const wethPriceResponse = await agent.processUserInput(
+            "print the price of the WETH/USDC liquidity pool without any extra output. Just the price number.",
+          );
+          const wethPrice = parseFloat(wethPriceResponse.content);
+          expect(wethPrice).to.be.a("number").and.to.be.gt(0);
+
+          // Using a small delta for floating point comparison
+          expect(ethPrice).to.be.closeTo(wethPrice, 1e-9);
+        });
+
+        it("should list native ETH pools", async () => {
+          const poolsResponse = await agent.processUserInput(
+            "List all liquidity pools that contain native ETH",
+          );
+          expect(poolsResponse.content.toLowerCase()).to.contain("eth");
+          expect(poolsResponse.content.toLowerCase()).to.contain("pool");
+        });
+      });
     });
   }
 });
