@@ -162,7 +162,7 @@ describe("Integration tests for Algebra (Camelot)", function () {
           const ethBalanceBefore = await multiChainSigner
             .getSignerForChainId(chainId)
             .getBalance();
-          
+
           const usdcBalanceBefore = await usdc.balanceOf(
             await multiChainSigner.getAddress(),
           );
@@ -172,7 +172,7 @@ describe("Integration tests for Algebra (Camelot)", function () {
             "print the price of the ETH/USDC liquidity pool without any extra output. Just the price number.",
           );
           const price = parseFloat(priceStr.content);
-          
+
           const targetETHAmount = 0.001; // Small amount for testing
           const targetUSDCAmount = targetETHAmount * price;
 

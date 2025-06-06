@@ -110,7 +110,7 @@ describe("Integration tests for AAVE", async function () {
 
       // Test both native ETH and wrapped ETH
       const tokensToTest = ["ETH", "WETH"];
-      
+
       for (const tokenName of tokensToTest) {
         describe(`Testing ${tokenName} operations`, function () {
           it(`supply some ${tokenName}`, async () => {
@@ -127,8 +127,10 @@ describe("Integration tests for AAVE", async function () {
               `supply ${amountToSupply} ${tokenName}`,
             );
             expect(response.function_call!.name).to.be.equal("supply");
-            expect(JSON.parse(response.function_call!.arguments)).to.be.deep.equal({
-              tokenName: 'Wrapped ETH', // Agent always resolves to underlying WETH token
+            expect(
+              JSON.parse(response.function_call!.arguments),
+            ).to.be.deep.equal({
+              tokenName: "Wrapped ETH", // Agent always resolves to underlying WETH token
               amount: amountToSupply,
             });
 
@@ -138,7 +140,8 @@ describe("Integration tests for AAVE", async function () {
               throw new Error("WETH reserve not found after supply");
             }
             expect(parseFloat(oldReserve.underlyingBalance)).to.be.closeTo(
-              parseFloat(newReserve.underlyingBalance) - parseFloat(amountToSupply),
+              parseFloat(newReserve.underlyingBalance) -
+                parseFloat(amountToSupply),
               0.00001,
             );
           });
@@ -158,8 +161,10 @@ describe("Integration tests for AAVE", async function () {
               `borrow ${amountToBorrow} ${tokenName}`,
             );
             expect(response.function_call!.name).to.be.equal("borrow");
-            expect(JSON.parse(response.function_call!.arguments)).to.be.deep.equal({
-              tokenName: 'Wrapped ETH', // Agent always resolves to underlying WETH token
+            expect(
+              JSON.parse(response.function_call!.arguments),
+            ).to.be.deep.equal({
+              tokenName: "Wrapped ETH", // Agent always resolves to underlying WETH token
               amount: amountToBorrow,
             });
 
@@ -195,8 +200,10 @@ describe("Integration tests for AAVE", async function () {
               `repay ${amountToRepay} ${tokenName}`,
             );
             expect(response.function_call!.name).to.be.equal("repay");
-            expect(JSON.parse(response.function_call!.arguments)).to.be.deep.equal({
-              tokenName: 'Wrapped ETH', // Agent always resolves to underlying WETH token
+            expect(
+              JSON.parse(response.function_call!.arguments),
+            ).to.be.deep.equal({
+              tokenName: "Wrapped ETH", // Agent always resolves to underlying WETH token
               amount: amountToRepay,
             });
 
@@ -225,8 +232,10 @@ describe("Integration tests for AAVE", async function () {
               `withdraw ${amountToWithdraw} ${tokenName}`,
             );
             expect(response.function_call!.name).to.be.equal("withdraw");
-            expect(JSON.parse(response.function_call!.arguments)).to.be.deep.equal({
-              tokenName: 'Wrapped ETH', // Agent always resolves to underlying WETH token
+            expect(
+              JSON.parse(response.function_call!.arguments),
+            ).to.be.deep.equal({
+              tokenName: "Wrapped ETH", // Agent always resolves to underlying WETH token
               amount: amountToWithdraw,
             });
 
