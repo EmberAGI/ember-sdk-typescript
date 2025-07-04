@@ -82,8 +82,8 @@ importers:
         specifier: ^3.2.5
         version: 3.5.3
       prool:
-        specifier: ^0.0.23
-        version: 0.0.23
+        specifier: ^0.0.24
+        version: 0.0.24
       semantic-release:
         specifier: ^24.2.1
         version: 24.2.2(typescript@5.7.3)
@@ -2777,8 +2777,8 @@ packages:
   process-nextick-args@2.0.1:
     resolution: {integrity: sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag==}
 
-  prool@0.0.23:
-    resolution: {integrity: sha512-r1d0DIiVsp7aXqGiNGKmgrqJZa8GjMGEjsgjQO22DEClYYvK+HMPZTQ9diBqleGuwfiRk3lnsWRMbFTRmFbk9g==}
+  prool@0.0.24:
+    resolution: {integrity: sha512-L0EGUF5vK1XAQtceaiwfGxf0LGeJwurUizzc3i6JESsUyMROzGxTSMSBiajF8AoQaDYWIX2s1m00sC36CATrvQ==}
     engines: {node: '>=22'}
     peerDependencies:
       '@pimlico/alto': '*'
@@ -5723,7 +5723,7 @@ snapshots:
 
   process-nextick-args@2.0.1: {}
 
-  prool@0.0.23:
+  prool@0.0.24:
     dependencies:
       change-case: 5.4.4
       eventemitter3: 5.0.1
